@@ -56,6 +56,13 @@
       "url": "https://www.bart.gov/news/articles/2024/news20240916",
       "kind": "illustrative_with_geographic_reference",
       "notes": "Approximate route anchored near Embarcadero and West Oakland. Two bores and trains are schematic; vertical placement emphasizes below-water infrastructure and is not a surveyed engineering depth. No real-time train location or timetable. Three sailboats, animated cars and an occasional whale are illustrative."
+    },
+    {
+      "id": "nhdplus",
+      "title": "EPA WATERS NHDPlus V2 stream centerlines",
+      "url": "https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/2",
+      "kind": "mapped_historical",
+      "notes": "Medium-resolution mapped streams, including intermittent channels. Smaller streams retained in this Bay Area crop; adapted from Anselm\u2019s Water Atlas. Not live water extent or discharge. Query URL and feature identifiers retained in hydrography.geojson."
     }
   ],
   "street_segments": 12000,

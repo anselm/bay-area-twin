@@ -68,3 +68,7 @@ npm run prepare:geometry
 ```
 
 Commit the prepared `dist/assets/` files with the site. Raw downloads are cached under `scripts/cache/` and excluded from source control. The browser uses gzip assets with native decompression, with uncompressed equivalents for older browsers. Data are historical samples, not live feeds. The backdrop's wind, traffic, fog, animals and day/night cycle are illustrative. Decorative building lights fade with the day/night cycle.
+
+## Hydrography
+
+`python3 scripts/fetch-hydrography.py` saves a bounded EPA WATERS NHDPlus V2 stream snapshot. This reuses the Water Atlas source approach, retaining smaller streams instead of its order ≥ 4 selection. The cyan channels follow the terrain in the earth layer. Medium-resolution mapped channels include intermittent streams and are not live flow measurements. Ocean grid lines and the survey-block walls are deliberately faint to let channels and coastlines carry the geography.

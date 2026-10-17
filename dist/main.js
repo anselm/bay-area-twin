@@ -70,7 +70,7 @@ function makeTerrain(){
     const border=[-50,0,-DEPTH/2,50,0,-DEPTH/2,50,0,-DEPTH/2,50,0,DEPTH/2,50,0,DEPTH/2,-50,0,DEPTH/2,-50,0,DEPTH/2,-50,0,-DEPTH/2];lines(border,COLORS[level],level===0?.32:.15,g);
     const corner=[];for(const x of [-50,50])for(const z of [-DEPTH/2,DEPTH/2]){corner.push(x,-.3,z,x+Math.sign(-x)*3,-.3,z,x,-.3,z,x,-.3,z+Math.sign(-z)*3);}
     lines(corner,COLORS[level],.65,g);
-    const fine=[];for(let i=0;i<=40;i++){const x=-50+i*2.5;fine.push(x,-.2,-DEPTH/2,x,-.2,DEPTH/2);}for(let i=0;i<=36;i++){const z=-DEPTH/2+i*DEPTH/36;fine.push(-50,-.2,z,50,-.2,z);}lines(fine,COLORS[level],level===0?.06:.032,g);
+    const fine=[];for(let i=0;i<=40;i++){const x=-50+i*2.5;fine.push(x,-.2,-DEPTH/2,x,-.2,DEPTH/2);}for(let i=0;i<=36;i++){const z=-DEPTH/2+i*DEPTH/36;fine.push(-50,-.2,z,50,-.2,z);}lines(fine,COLORS[level],level===0?.012:.025,g);
     // Each layer shares the same georeferenced relief, allowing a true reassembly.
     const n=128,geom=new THREE.PlaneGeometry(WIDTH,DEPTH,n,n);geom.rotateX(-Math.PI/2);
     const p=geom.attributes.position,colors=new Float32Array(p.count*3),c=new THREE.Color();
@@ -81,12 +81,13 @@ function makeTerrain(){
       colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
     }
     geom.setAttribute('color',new THREE.BufferAttribute(colors,3));geom.computeVertexNormals();
-    const m=material('MeshStandardMaterial',{vertexColors:true,roughness:.94,metalness:.12,transparent:true,opacity:level===0?.68:level===3?.12:.08,side:THREE.DoubleSide,depthWrite:level===0});
+    const m=material('MeshStandardMaterial',{vertexColors:true,roughness:.94,metalness:.12,transparent:true,opacity:level===0?.22:level===3?.12:.08,side:THREE.DoubleSide,depthWrite:false});
     const mesh=new THREE.Mesh(geom,m);g.add(mesh);
-    const wire=[];const step=4;
-    for(let z=0;z<=n;z+=step)for(let x=0;x<n;x+=2){const a=z*(n+1)+x,b=a+2;wire.push(p.getX(a),p.getY(a)+.035,p.getZ(a),p.getX(b),p.getY(b)+.035,p.getZ(b));}
-    for(let x=0;x<=n;x+=step)for(let z=0;z<n;z+=2){const a=z*(n+1)+x,b=a+(n+1)*2;wire.push(p.getX(a),p.getY(a)+.035,p.getZ(a),p.getX(b),p.getY(b)+.035,p.getZ(b));}
-    lines(wire,COLORS[level],level===0?.23:.075,g);
+    const wire=[],oceanWire=[];const step=8;
+    for(let z=0;z<=n;z+=step)for(let x=0;x<n;x+=2){const a=z*(n+1)+x,b=a+2;(p.getY(a)<0&&p.getY(b)<0?oceanWire:wire).push(p.getX(a),p.getY(a)+.035,p.getZ(a),p.getX(b),p.getY(b)+.035,p.getZ(b));}
+    for(let x=0;x<=n;x+=step)for(let z=0;z<n;z+=2){const a=z*(n+1)+x,b=a+(n+1)*2;(p.getY(a)<0&&p.getY(b)<0?oceanWire:wire).push(p.getX(a),p.getY(a)+.035,p.getZ(a),p.getX(b),p.getY(b)+.035,p.getZ(b));}
+    lines(wire,COLORS[level],level===0?.105:.055,g);
+    lines(oceanWire,COLORS[level],level===0?.018:.022,g);
   }
   // Survey-block sides reveal that the bottom layer includes the seabed.
   const walls=[],wallIndices=[];
@@ -96,7 +97,7 @@ function makeTerrain(){
   for(let i=1;i<=n;i++)rim.push([50-i*100/n,DEPTH/2]);
   for(let i=1;i<=n;i++)rim.push([-50,DEPTH/2-i*DEPTH/n]);
   for(let i=0;i<rim.length;i++){const [x,z]=rim[i];walls.push(x,relief(elevation(x,z)),z,x,-5,z);if(i){const k=(i-1)*2;wallIndices.push(k,k+1,k+2,k+1,k+3,k+2);}}
-  const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(walls,3));wg.setIndex(wallIndices);wg.computeVertexNormals();layers[0].add(new THREE.Mesh(wg,material('MeshStandardMaterial',{color:0x102e38,transparent:true,opacity:.86,side:THREE.DoubleSide,roughness:1})));
+  const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(walls,3));wg.setIndex(wallIndices);wg.computeVertexNormals();layers[0].add(new THREE.Mesh(wg,material('MeshStandardMaterial',{color:0x102e38,transparent:true,opacity:.18,side:THREE.DoubleSide,roughness:1})));
   const strata=[];for(const y of [-4,-3,-2])for(let i=1;i<rim.length;i++)strata.push(rim[i-1][0],y,rim[i-1][1],rim[i][0],y,rim[i][1]);lines(strata,0x3e8790,.14,layers[0]);
   makeContours();
 }
@@ -108,8 +109,28 @@ function packedLines(data,color,opacity,group){
   const mesh=new THREE.LineSegments(packedGeometry(data),m);mesh.scale.setScalar(1/512);group.add(mesh);return mesh;
 }
 function makeContours(){
-  packedLines(packedContours,0x8ac3bc,.30,layers[0]);
+  packedLines(packedContours,0x8ac3bc,.19,layers[0]);
   for(let level=0;level<4;level++)packedLines(packedCoast,COLORS[level],level===0?.65:.38,layers[level]);
+}
+
+function makeHydrography(data){
+  const segments=[];let count=0;
+  for(const f of data.features){
+    const paths=f.geometry.type==='MultiLineString'?f.geometry.coordinates:[f.geometry.coordinates];
+    for(const path of paths)for(let i=1;i<path.length;i++){
+      let [ax,az]=xy(...path[i-1]),[bx,bz]=xy(...path[i]);
+      // Clip each segment to this geographic slice (Liang–Barsky).
+      const dx=bx-ax,dz=bz-az;let lo=0,hi=1,valid=true;
+      for(const [p,q] of [[-dx,ax+50],[dx,50-ax],[-dz,az+DEPTH/2],[dz,DEPTH/2-az]]){
+        if(p===0){if(q<0)valid=false;}else{const t=q/p;if(p<0)lo=Math.max(lo,t);else hi=Math.min(hi,t);}
+      }
+      if(!valid||lo>hi)continue;
+      const x1=ax+dx*lo,z1=az+dz*lo,x2=ax+dx*hi,z2=az+dz*hi;
+      segments.push(x1,ground(x1,z1)+.16,z1,x2,ground(x2,z2)+.16,z2);count++;
+    }
+  }
+  lines(segments,0x78e6ed,.82,layers[0]);
+  stats.hydrographyFeatures=data.features.length;stats.hydrographySegments=count;
 }
 
 function makeForces(){
@@ -342,6 +363,7 @@ async function boot(){
   try{
     initRenderer();setupUI();
     new IntersectionObserver(entries=>{sceneInView=entries[0].isIntersecting;},{threshold:0}).observe($('#bay-hero'));
+    const hydroResult=fetchAsset('hydrography.geojson').then(value=>({value}),error=>({error}));
     const cityLoad=Promise.all([fetchAsset('buildings.lite.json'),fetchAsset('trees.json'),fetchAsset('streets.json'),fetchAsset('city.mesh.i16','binary'),fetchAsset('city.edges.i16','binary')]);
     const terrainLoad=Promise.all([fetchAsset('elevation.f32','binary'),fetchAsset('terrain.contours.i16','binary'),fetchAsset('terrain.coast.i16','binary')]);
     // Observe both immediately so an asset failure never becomes an unhandled rejection.
@@ -355,6 +377,7 @@ async function boot(){
     const result=await cityResult;if(result.status==='rejected')throw result.reason;
     const [b,t,s,c,e]=result.value;buildings=b;trees=t;streets=s;packedCity=new Int16Array(c);packedEdges=new Int16Array(e);
     makeLivingSystems();await new Promise(requestAnimationFrame);makeBuiltWorld();
+    const hydro=await hydroResult;if(hydro.value)makeHydrography(hydro.value);else console.warn('Hydrography unavailable',hydro.error);
     layers[2].userData.reveal=0;layers[3].userData.reveal=0;state.ready=true;
     $('#scene').dataset.fullSceneMs=String(Math.round(performance.now()-startupAt));
     $('#mapped-data-copy').textContent=`${buildings.length.toLocaleString()} simplified San Francisco building footprints, ${streets.length.toLocaleString()} sampled street segments, and ${trees.length.toLocaleString()} mapped points from a historical street-tree inventory. These are partial source snapshots, not a present-day census. Regional forest placement, crown sizes and landmark meshes are illustrative.`;
