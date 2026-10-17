@@ -128,7 +128,7 @@ Use the **Pages URL**, not a github.com source link or raw.githubusercontent.com
 </style>
 ```
 
-`?backdrop=1` hides controls and retains annotations, uses a 30 fps cap, honors reduced-motion preferences, and pauses rendering when the iframe is offscreen or the tab is hidden. Backdrop mode now permits drag, zoom and pan by default. Automatic orbit resumes 12 seconds after interaction. The wrapper above keeps the landscape interactive wherever article copy does not cover it. For a purely decorative version, add `interactive=0`, `pointer-events:none`, `aria-hidden="true"` and `tabindex="-1"`. For an interactive widget use the ordinary URL (or `?embed=1` for compact controls), remove `aria-hidden`, `tabindex` and `pointer-events: none`. `?transparent=1` can be combined with backdrop mode to let the host page's background show through.
+`?backdrop=1` hides controls and retains annotations, uses a 30 fps cap, honors reduced-motion preferences, and pauses rendering when the iframe is offscreen or the tab is hidden. Backdrop mode now permits drag, zoom and pan by default. The default camera tour starts immediately and resumes smoothly 12 seconds after interaction. The wrapper above keeps the landscape interactive wherever article copy does not cover it. For a purely decorative version, add `interactive=0`, `pointer-events:none`, `aria-hidden="true"` and `tabindex="-1"`. For an interactive widget use the ordinary URL (or `?embed=1` for compact controls), remove `aria-hidden`, `tabindex` and `pointer-events: none`. `?transparent=1` can be combined with backdrop mode to let the host page's background show through.
 
 An iframe isolates the scene's styles and Three.js from the wiki. Updating the Pages deployment updates every embedding page. For a stable article edition, use a separately hosted versioned copy. Alternatively copy `dist/` into your wiki's public assets under `bay-area-twin/` and change the iframe URL to `/bay-area-twin/?backdrop=1`; preserve the folder layout and attribution. No npm package or Git submodule is required.
 
@@ -171,8 +171,8 @@ Use the [embed configurator](https://anselm.github.io/bay-area-twin/embed.html) 
 | `backdrop=1` | Hide interface, keep place labels; mouse/touch interaction enabled by default. |
 | `bg=transparent` | Fully transparent HTML/canvas; removes the dark vignette and distance fog. `transparent=1` remains an alias. |
 | `bg=132c3d` | Solid six-digit hex background matching your page. Omit `#` in URLs, or encode it as `%23`. Distance fog matches the chosen color. |
-| `camera=orbit` | Default: automatic slow orbit. |
-| `camera=tour` | Gentle looping camera flight: orbit, approach, rise and retreat around the layers. |
+| `camera=orbit` | Automatic slow orbit, as an alternative to the default tour. |
+| `camera=tour` | Default: a 110-second looping spline flight past SF, the Bay Bridge/East Bay, Marin woodland, Golden Gate and the seabed, with subtle turn banking. |
 | `camera=static` | No automatic camera movement; animated life still runs. |
 | `interactive=0` | Disable mouse/touch model controls. Default is `1`; parent wrapper pointer events must also be enabled for interaction. |
 | `parentOrigin=https%3A%2F%2Fyour-wiki.example` | Optional restriction on the embedding parent's control messages. |
@@ -213,3 +213,7 @@ window.addEventListener('message', event => {
 ```
 
 Supported fields: `background` (transparent or six-digit hex), `camera` (orbit/tour/static), `playing` and `interactive` (booleans), `separation` (0–1), `focus` (-1 for all layers, 0–3 for one layer), and `reset:true`. Messages are accepted only from the immediate embedding parent; add `parentOrigin` for a stricter origin allowlist. No arbitrary code or external data URLs are accepted. Reduced motion starts playback paused; a visitor-triggered Play action may explicitly resume it.
+
+### Automatic camera choreography
+
+The tour is now the default even when `camera` is omitted. It starts as soon as the terrain renders, follows a closed centripetal spline through points of interest, and gently banks into turns (capped below 4 degrees). The camera remains outside the separated layers. Mouse/touch interaction takes over immediately; after 12 seconds idle, the tour blends back from the visitor's chosen view without a cut. Reduced motion still starts paused. Existing embeds explicitly specifying `camera=orbit` or `camera=static` retain that choice; remove that parameter or use `camera=tour` to adopt the tour. Host controls sending `playing:false` must also be removed or resumed for autoplay.

@@ -8,9 +8,23 @@ const isEmbed=params.has('embed')||isBackdrop;
 if(isEmbed)document.body.classList.add('embed');
 if(isBackdrop)document.body.classList.add('backdrop');
 const initialBackground=params.get('bg')||(params.get('transparent')==='1'?'transparent':'071019');
-const initialCamera=['orbit','tour','static'].includes(params.get('camera'))?params.get('camera'):'orbit';
-let interactive=params.get('interactive')!=='0',dragging=false,cameraTravel=0;
+const initialCamera=['orbit','tour','static'].includes(params.get('camera'))?params.get('camera'):'tour';
+let interactive=params.get('interactive')!=='0',dragging=false,cameraTravel=0,cameraBank=0;
 const tourPosition=new THREE.Vector3(),tourTarget=new THREE.Vector3();
+const tourTangent=new THREE.Vector3(),tourAhead=new THREE.Vector3(),tourTurn=new THREE.Vector3();
+// Closed, centripetal splines connect wide views and geographic points of interest.
+const tourStops=[
+  {name:'Bay overview',position:[144,121,177],target:[0,22,0]},
+  {name:'San Francisco',position:[105,98,119],target:[8,47,15]},
+  {name:'Bay Bridge & East Bay',position:[151,103,-16],target:[28,47,1]},
+  {name:'Across the Bay',position:[100,133,-136],target:[26,36,-18]},
+  {name:'Marin woodland',position:[-35,108,-151],target:[-19,35,-25]},
+  {name:'Golden Gate',position:[-137,91,-52],target:[-5,47,-3]},
+  {name:'Coast & seabed',position:[-132,78,87],target:[-18,7,9]},
+  {name:'Living layers',position:[-33,142,193],target:[-8,26,0]}
+];
+const tourPath=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...s.position)),true,'centripetal');
+const tourLook=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...s.target)),true,'centripetal');
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false,cameraMode:initialCamera};
 if(initialCamera==='static')state.orbit=false;
@@ -80,15 +94,25 @@ function setInteractive(value){
 function moveCamera(dt,now){
   const automatic=state.orbit&&state.playing&&!dragging&&now/1000-state.draggedAt>12;
   controls.autoRotate=automatic&&state.cameraMode==='orbit';controls.autoRotateSpeed=.45;
+  let bankTarget=0;
   if(automatic&&state.cameraMode==='tour'){
-    // A gentle looping overview: orbit, approach, rise and retreat without cutting through the layers.
-    cameraTravel+=dt;const phase=cameraTravel*Math.PI*2/100,angle=Math.atan2(144,177)+phase;
-    const radius=226-36*Math.sin(phase*.5)**2;
-    tourPosition.set(Math.sin(angle)*radius,117+22*Math.sin(phase),Math.cos(angle)*radius);
-    tourTarget.set(Math.sin(phase)*7,18+5*Math.sin(phase*.5)**2,Math.cos(phase)*5);
-    const blend=1-Math.exp(-dt*.45);camera.position.lerp(tourPosition,blend);controls.target.lerp(tourTarget,blend);
+    cameraTravel+=dt;const phase=(cameraTravel/110)%1;
+    $('#scene').dataset.tourProgress=phase.toFixed(4);
+    tourPath.getPoint(phase,tourPosition);tourLook.getPoint(phase,tourTarget);
+    tourTarget.y*=(.18+state.spread*18.5)/(.18+.82*18.5);
+    // Leave breathing room on narrow embeds; all flight paths stay outside the layer volume.
+    if(camera.aspect<1.15)tourPosition.sub(tourTarget).multiplyScalar(1.2).add(tourTarget);
+    const blend=1-Math.exp(-dt*.7);camera.position.lerp(tourPosition,blend);controls.target.lerp(tourTarget,blend);
+    tourPath.getTangent(phase,tourTangent);tourPath.getTangent((phase+.006)%1,tourAhead);
+    tourTurn.crossVectors(tourTangent,tourAhead);
+    // A few degrees of damped bank suggest turning forces without a rolling horizon.
+    bankTarget=clamp(-tourTurn.y*1.7,-.065,.065);
+    $('#scene').dataset.tourStop=tourStops[Math.floor(phase*tourStops.length)].name;
   }
+  cameraBank=mix(cameraBank,bankTarget,1-Math.exp(-dt*2.2));
+  $('#scene').dataset.cameraBank=String(+(cameraBank*180/Math.PI).toFixed(2));
   $('#scene').dataset.cameraMode=state.cameraMode;
+  $('#scene').dataset.cameraAutomatic=String(automatic);
 }
 // The embedding parent can configure display options; no arbitrary scripts or data access.
 window.addEventListener('message',event=>{
@@ -414,7 +438,7 @@ function renderLoop(){
     layers.forEach((g,i)=>{g.position.y=i*(.18+state.spread*18.5);g.userData.reveal=Math.min(1,(g.userData.reveal??1)+dt*1.4);const fade=(state.focus<0||state.focus===i?1:.09)*g.userData.reveal;g.userData.fade=mix(g.userData.fade,fade,1-Math.exp(-dt*4));g.traverse(o=>{if(!o.material)return;const m=o.material;if(m.userData.originalOpacity===undefined)return;const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));const night=m.userData.cityLights?1.15-daylight*.3:1;m.opacity=clamp(m.userData.originalOpacity*g.userData.fade*m.userData.dynamicGain*night,0,1);});});
     for(let i=motions.length-1;i>=0;i--){const m=motions[i];if(m.update(dt,state.elapsed)&&m.once)motions.splice(i,1);}
     moveCamera(dt,now);
-    controls.update(dt);scene.updateMatrixWorld();
+    controls.update(dt);if(Math.abs(cameraBank)>.00001)camera.rotateZ(cameraBank);scene.updateMatrixWorld();
     const hours=Math.floor(state.time),minutes=Math.floor((state.time-hours)*60);const timeLabel=`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;if($('#clock').textContent!==timeLabel)$('#clock').textContent=timeLabel;
     const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));scene.children.find(o=>o.isHemisphereLight).intensity=.55+daylight*.8;
     updateAnnotations();renderer.render(scene,camera);
