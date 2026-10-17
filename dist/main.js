@@ -7,9 +7,13 @@ const isBackdrop=params.has('backdrop');
 const isEmbed=params.has('embed')||isBackdrop;
 if(isEmbed)document.body.classList.add('embed');
 if(isBackdrop)document.body.classList.add('backdrop');
-if(params.has('transparent'))document.documentElement.classList.add('transparent');
+const initialBackground=params.get('bg')||(params.get('transparent')==='1'?'transparent':'071019');
+const initialCamera=['orbit','tour','static'].includes(params.get('camera'))?params.get('camera'):'orbit';
+let interactive=params.get('interactive')!=='0',dragging=false,cameraTravel=0;
+const tourPosition=new THREE.Vector3(),tourTarget=new THREE.Vector3();
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
-const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false};
+const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false,cameraMode:initialCamera};
+if(initialCamera==='static')state.orbit=false;
 const COLORS=[0x60b4b4,0x7dd7f2,0xa0ddb1,0xf1cc91];
 const BOUNDS=[-122.65,37.67,-122.27,37.95];
 const WIDTH=100,DEPTH=93.25;
@@ -51,13 +55,59 @@ function initRenderer(){
   const key=new THREE.DirectionalLight(0xc0dfd4,2.5);key.position.set(-45,80,20);scene.add(key);
   const fill=new THREE.DirectionalLight(0x6188a0,1);fill.position.set(50,25,-40);scene.add(fill);
   root=new THREE.Group();scene.add(root);
-  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.045;controls.enablePan=!isBackdrop;controls.enableZoom=!isBackdrop;controls.minDistance=85;controls.maxDistance=360;controls.minPolarAngle=.2;controls.maxPolarAngle=Math.PI*.48;controls.rotateSpeed=.45;controls.zoomSpeed=.7;
-  controls.addEventListener('start',()=>{state.draggedAt=performance.now()/1000;});
-  controls.addEventListener('end',()=>{state.draggedAt=performance.now()/1000;});
-  resetView(false);resize();new ResizeObserver(resize).observe($('#bay-hero'));
+  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.045;controls.enablePan=true;controls.enableZoom=true;controls.enabled=interactive;controls.minDistance=85;controls.maxDistance=360;controls.minPolarAngle=.2;controls.maxPolarAngle=Math.PI*.48;controls.rotateSpeed=.45;controls.zoomSpeed=.7;
+  controls.addEventListener('start',()=>{dragging=true;state.draggedAt=performance.now()/1000;});
+  controls.addEventListener('end',()=>{dragging=false;state.draggedAt=performance.now()/1000;});
+  setBackground(initialBackground);if(!params.has('bg')&&params.get('transparent')!=='1')document.documentElement.classList.remove('custom-background');setInteractive(interactive);resetView(false);resize();new ResizeObserver(resize).observe($('#bay-hero'));
   renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();$('#error-copy').textContent='The graphics context was interrupted. Reload to rebuild the view.';$('#error-panel').hidden=false;});
 }
+function setBackground(value){
+  if(typeof value!=='string')return false;
+  const transparent=value==='transparent',hex=value.replace(/^#/,'');
+  if(!transparent&&!/^[0-9a-f]{6}$/i.test(hex))return false;
+  document.documentElement.classList.toggle('transparent',transparent);
+  document.documentElement.classList.toggle('custom-background',!transparent);
+  document.documentElement.style.setProperty('--bg',transparent?'transparent':'#'+hex);
+  scene.fog=transparent?null:new THREE.FogExp2('#'+hex,.0018);
+  $('#scene').dataset.background=transparent?'transparent':'#'+hex;
+  return true;
+}
+function setInteractive(value){
+  interactive=value;controls.enabled=value;
+  document.body.classList.toggle('interactive',value);
+  $('#scene').dataset.interactive=String(value);
+}
+function moveCamera(dt,now){
+  const automatic=state.orbit&&state.playing&&!dragging&&now/1000-state.draggedAt>12;
+  controls.autoRotate=automatic&&state.cameraMode==='orbit';controls.autoRotateSpeed=.45;
+  if(automatic&&state.cameraMode==='tour'){
+    // A gentle looping overview: orbit, approach, rise and retreat without cutting through the layers.
+    cameraTravel+=dt;const phase=cameraTravel*Math.PI*2/100,angle=Math.atan2(144,177)+phase;
+    const radius=226-36*Math.sin(phase*.5)**2;
+    tourPosition.set(Math.sin(angle)*radius,117+22*Math.sin(phase),Math.cos(angle)*radius);
+    tourTarget.set(Math.sin(phase)*7,18+5*Math.sin(phase*.5)**2,Math.cos(phase)*5);
+    const blend=1-Math.exp(-dt*.45);camera.position.lerp(tourPosition,blend);controls.target.lerp(tourTarget,blend);
+  }
+  $('#scene').dataset.cameraMode=state.cameraMode;
+}
+// The embedding parent can configure display options; no arbitrary scripts or data access.
+window.addEventListener('message',event=>{
+  if(window.parent===window||event.source!==window.parent)return;
+  if(params.has('parentOrigin')&&event.origin!==params.get('parentOrigin'))return;
+  const m=event.data;if(!m||m.type!=='bay-layers:configure'||!controls)return;
+  if(typeof m.background==='string')setBackground(m.background);
+  if(typeof m.interactive==='boolean')setInteractive(m.interactive);
+  if(typeof m.playing==='boolean'){
+    state.playing=m.playing;$('#play').setAttribute('aria-pressed',state.playing);$('#play').setAttribute('aria-label',state.playing?'Pause motion':'Play motion');$('#play span').textContent=state.playing?'Ⅱ':'▶';
+  }
+  if(['orbit','tour','static'].includes(m.camera)){state.cameraMode=m.camera;state.orbit=m.camera!=='static';$('#auto-orbit').setAttribute('aria-pressed',state.orbit);}
+  if(Number.isFinite(m.separation)){state.spreadTarget=clamp(m.separation,0,1);$('#separation').value=state.spreadTarget;}
+  if(Number.isInteger(m.focus)&&m.focus>=-1&&m.focus<=3)setFocus(m.focus);
+  if(m.reset===true)resetView();
+});
+
 function resetView(animate=true){
+  if(animate)state.draggedAt=performance.now()/1000;
   const mobile=$('#bay-hero').clientWidth<700;
   const position=mobile?new THREE.Vector3(176,157,222):new THREE.Vector3(144,121,177);
   // The model lives slightly to the right, leaving the introduction quiet.
@@ -341,7 +391,7 @@ function setupUI(){
   function updateAssemble(){$('#assemble').innerHTML=state.spreadTarget<.1?'Unfold the layers <span>↗</span>':'Bring together <span>↘</span>';}
   $('#assemble').addEventListener('click',()=>{state.spreadTarget=state.spreadTarget<.1?.82:0;$('#separation').value=state.spreadTarget;updateAssemble();});
   $('#view-reset').addEventListener('click',()=>{resetView();setFocus(-1);});
-  $('#auto-orbit').setAttribute('aria-pressed',state.orbit);$('#auto-orbit').addEventListener('click',()=>{state.orbit=!state.orbit;$('#auto-orbit').setAttribute('aria-pressed',state.orbit);});
+  $('#auto-orbit').setAttribute('aria-pressed',state.orbit);$('#auto-orbit').addEventListener('click',()=>{state.orbit=!state.orbit;if(state.orbit&&state.cameraMode==='static')state.cameraMode='orbit';$('#auto-orbit').setAttribute('aria-pressed',state.orbit);});
   document.querySelectorAll('[data-layer]').forEach(el=>el.addEventListener('click',()=>setFocus(state.focus===+el.dataset.layer?-1:+el.dataset.layer)));
   window.addEventListener('keydown',e=>{if(e.target.matches('input,button,a')||$('#sources-dialog').open)return;if(e.code==='Space'){e.preventDefault();state.playing=!state.playing;setPlay();}if(e.code==='Escape')setFocus(-1);if(['Digit1','Digit2','Digit3','Digit4'].includes(e.code))setFocus(+e.code.at(-1)-1);});
 }
@@ -363,12 +413,12 @@ function renderLoop(){
     state.spread=mix(state.spread,state.spreadTarget,1-Math.exp(-dt*4));
     layers.forEach((g,i)=>{g.position.y=i*(.18+state.spread*18.5);g.userData.reveal=Math.min(1,(g.userData.reveal??1)+dt*1.4);const fade=(state.focus<0||state.focus===i?1:.09)*g.userData.reveal;g.userData.fade=mix(g.userData.fade,fade,1-Math.exp(-dt*4));g.traverse(o=>{if(!o.material)return;const m=o.material;if(m.userData.originalOpacity===undefined)return;const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));const night=m.userData.cityLights?1.15-daylight*.3:1;m.opacity=clamp(m.userData.originalOpacity*g.userData.fade*m.userData.dynamicGain*night,0,1);});});
     for(let i=motions.length-1;i>=0;i--){const m=motions[i];if(m.update(dt,state.elapsed)&&m.once)motions.splice(i,1);}
-    if(state.orbit&&state.playing&&now/1000-state.draggedAt>12){controls.autoRotate=true;controls.autoRotateSpeed=.12;}else controls.autoRotate=false;
+    moveCamera(dt,now);
     controls.update(dt);scene.updateMatrixWorld();
     const hours=Math.floor(state.time),minutes=Math.floor((state.time-hours)*60);const timeLabel=`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;if($('#clock').textContent!==timeLabel)$('#clock').textContent=timeLabel;
     const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));scene.children.find(o=>o.isHemisphereLight).intensity=.55+daylight*.8;
     updateAnnotations();renderer.render(scene,camera);
-    if(now-lastStats>2000){window.bayLayers.stats={...stats,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,points:renderer.info.render.points,frameMs:Math.round(dt*1000)};$('#scene').dataset.renderStats=JSON.stringify(window.bayLayers.stats);lastStats=now;}
+    if(now-lastStats>2000){window.bayLayers.stats={...stats,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,points:renderer.info.render.points,frameMs:Math.round(dt*1000),cameraPosition:camera.position.toArray().map(x=>+x.toFixed(2))};$('#scene').dataset.renderStats=JSON.stringify(window.bayLayers.stats);lastStats=now;}
   }requestAnimationFrame(frame);
 }
 async function fetchAsset(name,type='json'){
@@ -411,6 +461,7 @@ async function boot(){
     const vegetation=await vegetationResult;if(vegetation.value)makeVegetation(vegetation.value);else console.warn('Vegetation unavailable',vegetation.error);
     const hydro=await hydroResult;if(hydro.value)makeHydrography(hydro.value);else console.warn('Hydrography unavailable',hydro.error);
     layers[2].userData.reveal=0;layers[3].userData.reveal=0;state.ready=true;
+    if(window.parent!==window)window.parent.postMessage({type:'bay-layers:ready',version:1},params.get('parentOrigin')||'*');
     $('#scene').dataset.fullSceneMs=String(Math.round(performance.now()-startupAt));
     $('#mapped-data-copy').textContent=`${buildings.length.toLocaleString()} simplified building footprints across the visible Bay slice, ${streets.length.toLocaleString()} sampled street segments, and ${trees.length.toLocaleString()} mapped points from a historical street-tree inventory. These are partial source snapshots, not a present-day census. Marin vegetation patches follow a historical mapped lifeform classification. Missing regional building heights use an illustrative two-storey default. Crown sizes, SF park sketches and landmark meshes are illustrative.`;
   }catch(error){console.error(error);const loader=$('#loading');if(loader)loader.style.display='none';$('#error-copy').textContent=error.message;$('#error-panel').hidden=false;}

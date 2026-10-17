@@ -5,3 +5,11 @@
 body.backdrop .masthead,body.backdrop .intro,body.backdrop .layer-nav,body.backdrop .scene-tools,body.backdrop .console,body.backdrop .caption{display:none}body.backdrop .vignette{background:linear-gradient(0deg,#07101977,transparent 20%,transparent 80%,#07101933)}body.backdrop #scene{pointer-events:none}body.backdrop .landmark{font-size:8px;letter-spacing:1.4px}body.backdrop .landmark.secondary{display:block}body.backdrop .bay-hero{min-height:0}
 
 html.transparent,html.transparent body,html.transparent .bay-hero{background:transparent}html.transparent .vignette{display:none}
+
+/* Configurable embedding surfaces must not retain a dark vignette or gradient. */
+html.custom-background,html.custom-background body,html.custom-background .bay-hero{background:var(--bg)}
+html.custom-background .vignette{display:none}
+body.backdrop.interactive #scene{pointer-events:auto}
+body:not(.interactive) #scene{pointer-events:none}
+/* Avoid Chromium painting a dark canvas behind a transparent cross-scheme iframe. */
+html.transparent{color-scheme:normal}

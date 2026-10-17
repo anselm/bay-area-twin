@@ -130,7 +130,7 @@ Use the **Pages URL**, not a github.com source link or raw.githubusercontent.com
 </style>
 ```
 
-`?backdrop=1` hides controls and retains annotations, uses a 30 fps cap, honors reduced-motion preferences, and pauses rendering when the iframe is offscreen or the tab is hidden. For an interactive widget use the ordinary URL (or `?embed=1` for compact controls), remove `aria-hidden`, `tabindex` and `pointer-events: none`. `?transparent=1` can be combined with backdrop mode to let the host page's background show through.
+`?backdrop=1` hides controls and retains annotations, uses a 30 fps cap, honors reduced-motion preferences, and pauses rendering when the iframe is offscreen or the tab is hidden. Backdrop mode now permits drag, zoom and pan by default. Automatic orbit resumes 12 seconds after interaction. The decorative wrapper above deliberately disables pointer events; remove `pointer-events:none`, `aria-hidden` and `tabindex` to let readers explore it. For an interactive widget use the ordinary URL (or `?embed=1` for compact controls), remove `aria-hidden`, `tabindex` and `pointer-events: none`. `?transparent=1` can be combined with backdrop mode to let the host page's background show through.
 
 An iframe isolates the scene's styles and Three.js from the wiki. Updating the Pages deployment updates every embedding page. For a stable article edition, use a separately hosted versioned copy. Alternatively copy `dist/` into your wiki's public assets under `bay-area-twin/` and change the iframe URL to `/bay-area-twin/?backdrop=1`; preserve the folder layout and attribution. No npm package or Git submodule is required.
 
@@ -150,7 +150,7 @@ The source footprint acquisition is a bounded sample (up to 100,000 features per
 - Prefer an iframe using `https://anselm.github.io/bay-area-twin/?backdrop=1`. Do not fetch JavaScript from raw GitHub URLs or inject this scene's styles into the host page.
 - Use `&transparent=1` if the host background should show through. Plain backdrop mode has its own dark background. Give the iframe a real height; width alone will not size it correctly. Wide headers around 16:9 or 2:1 work well.
 - For decorative backgrounds, set `aria-hidden="true"`, `tabindex="-1"`, and `pointer-events:none`; put article content above the iframe. Use the accessible interactive view separately if visitors need to explore or read provenance.
-- No cross-origin fetch permission is needed to display an iframe. A host content security policy must allow `https://anselm.github.io` in `frame-src`. Same-origin policy prevents directly manipulating the widget DOM from another site. There is currently no postMessage control API; do not assume one exists.
+- No cross-origin fetch permission is needed to display an iframe. A host content security policy must allow `https://anselm.github.io` in `frame-src`. Same-origin policy prevents directly manipulating the widget DOM from another site. Use the documented `bay-layers:configure` postMessage API below to control the widget from its parent page.
 - The complete deployable unit is `dist/`. If self-hosting, copy all of it, keeping paths relative and directory structure intact. Serve via HTTP(S), not `file://`. Three.js is vendored; geographic files are prepared snapshots with no runtime third-party API calls.
 - Keep mapped data and illustrated motion clearly described. This is an explanatory scene, not an operational predictive twin. Preserve data-source links and OpenStreetMap attribution in the embedding page or an accessible credits link when backdrop mode hides the interface.
 - Respect reduced motion and offer a static image fallback when appropriate. `media/bay-layers-backdrop.gif` is promotional media, not a reduced-motion fallback, because it animates too.
@@ -163,3 +163,55 @@ The source footprint acquisition is a bounded sample (up to 100,000 features per
 - `media/bay-layers-backdrop.mp4`: the same animation at 1280 × 720, smaller and smoother for platforms that accept video.
 
 The GIF is embedded at the top of this README. The live widget remains interactive and continuously rendered; the GIF is a promotional recording. Mapped geometry is historical/sampled and motion is illustrative. When sharing independently, retain a source credit such as “Bay Layers by Anselm Hook · NOAA / Marin vegetation map partners / municipal data / © OpenStreetMap contributors.”
+
+## Embedding options and parent controls
+
+Use the [embed configurator](https://anselm.github.io/bay-area-twin/embed.html) to preview a page color, transparency, camera and interaction and copy the exact iframe markup.
+
+| Query option | Behavior |
+| --- | --- |
+| `backdrop=1` | Hide interface, keep place labels; mouse/touch interaction enabled by default. |
+| `bg=transparent` | Fully transparent HTML/canvas; removes the dark vignette and distance fog. `transparent=1` remains an alias. |
+| `bg=132c3d` | Solid six-digit hex background matching your page. Omit `#` in URLs, or encode it as `%23`. Distance fog matches the chosen color. |
+| `camera=orbit` | Default: automatic slow orbit. |
+| `camera=tour` | Gentle looping camera flight: orbit, approach, rise and retreat around the layers. |
+| `camera=static` | No automatic camera movement; animated life still runs. |
+| `interactive=0` | Disable mouse/touch model controls. Default is `1`; parent wrapper pointer events must also be enabled for interaction. |
+| `parentOrigin=https%3A%2F%2Fyour-wiki.example` | Optional restriction on the embedding parent's control messages. |
+
+Interactive transparent example (ensure that overlapping host content does not cover the entire iframe):
+
+```html
+<iframe
+  id="bay-twin"
+  src="https://anselm.github.io/bay-area-twin/?backdrop=1&amp;bg=transparent&amp;camera=tour"
+  title="Explore the layered landscape of San Francisco Bay"
+  style="width:100%;aspect-ratio:16/9;min-height:420px;border:0;background:transparent"
+></iframe>
+```
+
+For a passive backdrop under article copy, add `interactive=0`, `aria-hidden="true"`, `tabindex="-1"` and `pointer-events:none`. That intentionally makes direct model control impossible; use parent controls when needed. For interactive embeds, remove those settings. Transparency reveals the host background; it does not recolor the luminous geometry for light themes.
+
+The parent page can configure the widget without reaching across the iframe boundary. Send only to the widget's exact origin. Wait for `bay-layers:ready` before the initial configuration (use the same configuration again when replacing/reloading an iframe):
+
+```js
+const widget = document.querySelector('#bay-twin');
+const widgetOrigin = new URL(widget.src).origin;
+function configureBay(options) {
+  widget.contentWindow.postMessage({type: 'bay-layers:configure', ...options}, widgetOrigin);
+}
+window.addEventListener('message', event => {
+  if (event.source !== widget.contentWindow || event.origin !== widgetOrigin) return;
+  if (event.data?.type === 'bay-layers:ready') {
+    configureBay({background: 'transparent', camera: 'tour', interactive: true});
+  }
+});
+// Call from your page's buttons:
+// configureBay({playing: false});
+// configureBay({camera: 'orbit', playing: true});
+// configureBay({camera: 'static'});
+// configureBay({background: '#132c3d'});
+// configureBay({separation: 0.82, focus: -1, reset: true});
+```
+
+Supported fields: `background` (transparent or six-digit hex), `camera` (orbit/tour/static), `playing` and `interactive` (booleans), `separation` (0–1), `focus` (-1 for all layers, 0–3 for one layer), and `reset:true`. Messages are accepted only from the immediate embedding parent; add `parentOrigin` for a stricter origin allowlist. No arbitrary code or external data URLs are accepted. Reduced motion starts playback paused; a visitor-triggered Play action may explicitly resume it.
