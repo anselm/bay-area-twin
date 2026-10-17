@@ -1,0 +1,15 @@
+# Devlog
+
+A speedrun of the thinking behind Bay Layers: what we wanted, what changed, and why.
+
+The October 17 entries were reconstructed retrospectively from the project conversation and Git history on the same date. They record the progression of the work, not verbatim notes or exact timestamps. Commit references anchor the implementation where useful; several early commits bundle more than one change.
+
+Read in this order:
+
+1. [Initial prototype](20261017-initial-prototype.md) — a place unfolded into shared layers.
+2. [Static data and startup](20261017-static-data-and-startup.md) — move expensive work out of the visitor's browser.
+3. [Life and regional coverage](20261017-life-and-regional-coverage.md) — distinguish living systems, fill the surrounding landscape, quiet the seabed.
+4. [A widget for the wiki](20261017-embedding-and-publication.md) — GitHub Pages, promotion, transparent backgrounds and control.
+5. [The camera becomes a visitor](20261017-camera-tour.md) — default flybys, points of interest, gentle banking and manual takeover.
+
+Future entries should be short and written when meaningful decisions happen. Preserve uncertainty and abandoned approaches when they explain a choice. Keep measured results tied to their conditions; avoid turning an illustrative landscape into a claim of an operational twin.

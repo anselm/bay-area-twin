@@ -6,6 +6,10 @@
 
 A wide, luminous, interactive portrait of San Francisco Bay that explains the idea of a digital twin through four shared geographic layers: earth and seabed, natural forces, living systems, and the built world.
 
+## Development notes
+
+Read the [devlog](devlog/README.md) for a short, retrospective account of the prototype, static-data decisions, regional coverage, embedding and camera choreography.
+
 ## Run
 
 No installation or API key is required. Three.js 0.180.0 and OrbitControls are vendored with the upstream MIT license.
