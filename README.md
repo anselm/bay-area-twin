@@ -118,19 +118,17 @@ Use the **Pages URL**, not a github.com source link or raw.githubusercontent.com
     class="twin-backdrop"
     src="https://anselm.github.io/bay-area-twin/?backdrop=1"
     title="Animated layered landscape of San Francisco Bay"
-    aria-hidden="true"
-    tabindex="-1"
   ></iframe>
   <div class="twin-copy"><h1>Digital twins</h1><p>Your article introduction…</p></div>
 </section>
 <style>
 .twin-hero { position: relative; isolation: isolate; min-height: 520px; background: #071019; }
-.twin-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; z-index: -1; }
+.twin-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: auto; z-index: -1; }
 .twin-copy { position: relative; padding: 4rem; max-width: 40rem; color: white; }
 </style>
 ```
 
-`?backdrop=1` hides controls and retains annotations, uses a 30 fps cap, honors reduced-motion preferences, and pauses rendering when the iframe is offscreen or the tab is hidden. Backdrop mode now permits drag, zoom and pan by default. Automatic orbit resumes 12 seconds after interaction. The decorative wrapper above deliberately disables pointer events; remove `pointer-events:none`, `aria-hidden` and `tabindex` to let readers explore it. For an interactive widget use the ordinary URL (or `?embed=1` for compact controls), remove `aria-hidden`, `tabindex` and `pointer-events: none`. `?transparent=1` can be combined with backdrop mode to let the host page's background show through.
+`?backdrop=1` hides controls and retains annotations, uses a 30 fps cap, honors reduced-motion preferences, and pauses rendering when the iframe is offscreen or the tab is hidden. Backdrop mode now permits drag, zoom and pan by default. Automatic orbit resumes 12 seconds after interaction. The wrapper above keeps the landscape interactive wherever article copy does not cover it. For a purely decorative version, add `interactive=0`, `pointer-events:none`, `aria-hidden="true"` and `tabindex="-1"`. For an interactive widget use the ordinary URL (or `?embed=1` for compact controls), remove `aria-hidden`, `tabindex` and `pointer-events: none`. `?transparent=1` can be combined with backdrop mode to let the host page's background show through.
 
 An iframe isolates the scene's styles and Three.js from the wiki. Updating the Pages deployment updates every embedding page. For a stable article edition, use a separately hosted versioned copy. Alternatively copy `dist/` into your wiki's public assets under `bay-area-twin/` and change the iframe URL to `/bay-area-twin/?backdrop=1`; preserve the folder layout and attribution. No npm package or Git submodule is required.
 
