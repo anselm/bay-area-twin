@@ -25,8 +25,10 @@ const tourStops=[
 ];
 const tourPath=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...s.position)),true,'centripetal');
 const tourLook=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...s.target)),true,'centripetal');
+const requestedSpeed=Number(params.get('speed')??4);
+const cameraSpeed=Number.isFinite(requestedSpeed)?Math.min(12,Math.max(.25,requestedSpeed)):4;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
-const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false,cameraMode:initialCamera};
+const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false,cameraMode:initialCamera,cameraSpeed};
 if(initialCamera==='static')state.orbit=false;
 const COLORS=[0x60b4b4,0x7dd7f2,0xa0ddb1,0xf1cc91];
 const BOUNDS=[-122.65,37.67,-122.27,37.95];
@@ -93,16 +95,16 @@ function setInteractive(value){
 }
 function moveCamera(dt,now){
   const automatic=state.orbit&&state.playing&&!dragging&&now/1000-state.draggedAt>12;
-  controls.autoRotate=automatic&&state.cameraMode==='orbit';controls.autoRotateSpeed=.45;
+  controls.autoRotate=automatic&&state.cameraMode==='orbit';controls.autoRotateSpeed=.45*state.cameraSpeed;
   let bankTarget=0;
   if(automatic&&state.cameraMode==='tour'){
-    cameraTravel+=dt;const phase=(cameraTravel/110)%1;
+    cameraTravel+=dt*state.cameraSpeed;const phase=(cameraTravel/110)%1;
     $('#scene').dataset.tourProgress=phase.toFixed(4);
     tourPath.getPoint(phase,tourPosition);tourLook.getPoint(phase,tourTarget);
     tourTarget.y*=(.18+state.spread*18.5)/(.18+.82*18.5);
     // Leave breathing room on narrow embeds; all flight paths stay outside the layer volume.
     if(camera.aspect<1.15)tourPosition.sub(tourTarget).multiplyScalar(1.2).add(tourTarget);
-    const blend=1-Math.exp(-dt*.7);camera.position.lerp(tourPosition,blend);controls.target.lerp(tourTarget,blend);
+    const blend=1-Math.exp(-dt*.7*Math.sqrt(state.cameraSpeed));camera.position.lerp(tourPosition,blend);controls.target.lerp(tourTarget,blend);
     tourPath.getTangent(phase,tourTangent);tourPath.getTangent((phase+.006)%1,tourAhead);
     tourTurn.crossVectors(tourTangent,tourAhead);
     // A few degrees of damped bank suggest turning forces without a rolling horizon.
@@ -112,6 +114,7 @@ function moveCamera(dt,now){
   cameraBank=mix(cameraBank,bankTarget,1-Math.exp(-dt*2.2));
   $('#scene').dataset.cameraBank=String(+(cameraBank*180/Math.PI).toFixed(2));
   $('#scene').dataset.cameraMode=state.cameraMode;
+  $('#scene').dataset.cameraSpeed=String(state.cameraSpeed);
   $('#scene').dataset.cameraAutomatic=String(automatic);
 }
 // The embedding parent can configure display options; no arbitrary scripts or data access.
@@ -121,6 +124,7 @@ window.addEventListener('message',event=>{
   const m=event.data;if(!m||m.type!=='bay-layers:configure'||!controls)return;
   if(typeof m.background==='string')setBackground(m.background);
   if(typeof m.interactive==='boolean')setInteractive(m.interactive);
+  if(Number.isFinite(m.speed))state.cameraSpeed=clamp(m.speed,.25,12);
   if(typeof m.playing==='boolean'){
     state.playing=m.playing;$('#play').setAttribute('aria-pressed',state.playing);$('#play').setAttribute('aria-label',state.playing?'Pause motion':'Play motion');$('#play span').textContent=state.playing?'Ⅱ':'▶';
   }

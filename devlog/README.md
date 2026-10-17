@@ -12,4 +12,6 @@ Read in this order:
 4. [A widget for the wiki](20261017-embedding-and-publication.md) — GitHub Pages, promotion, transparent backgrounds and control.
 5. [The camera becomes a visitor](20261017-camera-tour.md) — default flybys, points of interest, gentle banking and manual takeover.
 
+6. [Camera speed](20261017-camera-speed.md) — a faster default and an adjustable camera-only multiplier.
+
 Future entries should be short and written when meaningful decisions happen. Preserve uncertainty and abandoned approaches when they explain a choice. Keep measured results tied to their conditions; avoid turning an illustrative landscape into a claim of an operational twin.

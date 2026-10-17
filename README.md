@@ -176,7 +176,8 @@ Use the [embed configurator](https://anselm.github.io/bay-area-twin/embed.html) 
 | `bg=transparent` | Fully transparent HTML/canvas; removes the dark vignette and distance fog. `transparent=1` remains an alias. |
 | `bg=132c3d` | Solid six-digit hex background matching your page. Omit `#` in URLs, or encode it as `%23`. Distance fog matches the chosen color. |
 | `camera=orbit` | Automatic slow orbit, as an alternative to the default tour. |
-| `camera=tour` | Default: a 110-second looping spline flight past SF, the Bay Bridge/East Bay, Marin woodland, Golden Gate and the seabed, with subtle turn banking. |
+| `camera=tour` | Default: a looping spline flight (about 28 seconds at the default speed) past SF, the Bay Bridge/East Bay, Marin woodland, Golden Gate and the seabed, with subtle turn banking. |
+| `speed=4` | Camera speed multiplier, 0.25–12; default 4. A tour takes 110 ÷ speed seconds: `speed=1` is the original pace, `speed=6` takes about 18 seconds. Applies to orbit too; does not change traffic or the day/night cycle. |
 | `camera=static` | No automatic camera movement; animated life still runs. |
 | `interactive=0` | Disable mouse/touch model controls. Default is `1`; parent wrapper pointer events must also be enabled for interaction. |
 | `parentOrigin=https%3A%2F%2Fyour-wiki.example` | Optional restriction on the embedding parent's control messages. |
@@ -210,14 +211,16 @@ window.addEventListener('message', event => {
 });
 // Call from your page's buttons:
 // configureBay({playing: false});
-// configureBay({camera: 'orbit', playing: true});
+// configureBay({camera: 'tour', speed: 6, playing: true});
 // configureBay({camera: 'static'});
 // configureBay({background: '#132c3d'});
 // configureBay({separation: 0.82, focus: -1, reset: true});
 ```
 
-Supported fields: `background` (transparent or six-digit hex), `camera` (orbit/tour/static), `playing` and `interactive` (booleans), `separation` (0–1), `focus` (-1 for all layers, 0–3 for one layer), and `reset:true`. Messages are accepted only from the immediate embedding parent; add `parentOrigin` for a stricter origin allowlist. No arbitrary code or external data URLs are accepted. Reduced motion starts playback paused; a visitor-triggered Play action may explicitly resume it.
+Supported fields: `speed` (numeric, 0.25–12), `background` (transparent or six-digit hex), `camera` (orbit/tour/static), `playing` and `interactive` (booleans), `separation` (0–1), `focus` (-1 for all layers, 0–3 for one layer), and `reset:true`. Messages are accepted only from the immediate embedding parent; add `parentOrigin` for a stricter origin allowlist. No arbitrary code or external data URLs are accepted. Reduced motion starts playback paused; a visitor-triggered Play action may explicitly resume it.
 
 ### Automatic camera choreography
 
 The tour is now the default even when `camera` is omitted. It starts as soon as the terrain renders, follows a closed centripetal spline through points of interest, and gently banks into turns (capped below 4 degrees). The camera remains outside the separated layers. Mouse/touch interaction takes over immediately; after 12 seconds idle, the tour blends back from the visitor's chosen view without a cut. Reduced motion still starts paused. Existing embeds explicitly specifying `camera=orbit` or `camera=static` retain that choice; remove that parameter or use `camera=tour` to adopt the tour. Host controls sending `playing:false` must also be removed or resumed for autoplay.
+
+The camera now defaults to `speed=4` after feedback that the initial tour felt too slow. Use the URL parameter or parent message `{type: "bay-layers:configure", speed: 6}` to adjust it. Speed changes preserve tour progress and the idle takeover behavior.
