@@ -3,3 +3,5 @@
 
 /* Article backdrop: the picture and its place names, without the workbench. */
 body.backdrop .masthead,body.backdrop .intro,body.backdrop .layer-nav,body.backdrop .scene-tools,body.backdrop .console,body.backdrop .caption{display:none}body.backdrop .vignette{background:linear-gradient(0deg,#07101977,transparent 20%,transparent 80%,#07101933)}body.backdrop #scene{pointer-events:none}body.backdrop .landmark{font-size:8px;letter-spacing:1.4px}body.backdrop .landmark.secondary{display:block}body.backdrop .bay-hero{min-height:0}
+
+html.transparent,html.transparent body,html.transparent .bay-hero{background:transparent}html.transparent .vignette{display:none}

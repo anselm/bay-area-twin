@@ -1,6 +1,17 @@
+# Download caches; prepared assets in dist/assets MUST be committed.
 scripts/cache/
 node_modules/
+.venv/
+__pycache__/
+*.py[cod]
 .DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+*.log
 *.tar.gz
 *.zip
 *.inspect.ndjson
+# Local editor/hosting scratch files
+.openai/local/

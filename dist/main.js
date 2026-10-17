@@ -7,6 +7,7 @@ const isBackdrop=params.has('backdrop');
 const isEmbed=params.has('embed')||isBackdrop;
 if(isEmbed)document.body.classList.add('embed');
 if(isBackdrop)document.body.classList.add('backdrop');
+if(params.has('transparent'))document.documentElement.classList.add('transparent');
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false};
 const COLORS=[0x60b4b4,0x7dd7f2,0xa0ddb1,0xf1cc91];
@@ -171,8 +172,8 @@ function makeLivingSystems(){
     const x=rng()*100-50,z=rng()*DEPTH-DEPTH/2,h=elevation(x,z);
     const [gx,gz]=xy(-122.48,37.77),[px,pz]=xy(-122.465,37.798);
     const park=(Math.abs(x-gx)<8&&Math.abs(z-gz)<1.6)||(Math.abs(x-px)<3.6&&Math.abs(z-pz)<2.8);
-    const north=(z<xy(-122.46,37.835)[1]&&x<xy(-122.42,37.84)[0]);
-    if(h>15&&((north&&rng()<.7)||(park&&rng()<.85)||(h>140&&rng()<.12))){forest.push(x,relief(h)+.2+rng()*.45,z);}
+    const south=z>xy(-122.46,37.805)[1];
+    if(h>15&&south&&((park&&rng()<.85)||(h>140&&rng()<.12))){forest.push(x,relief(h)+.2+rng()*.45,z);}
   }
   const tp=points(positions,0x9ad8b1,.42,.8,g);tp.geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));tp.material.vertexColors=true;
   const fp=points(forest,0x6ab6a2,.35,.46,g);lines(stems,0x90c7a4,.18,g);
@@ -185,6 +186,23 @@ function makeLivingSystems(){
   const fish=[];for(let i=0;i<130;i++){const x=-8+rng()*35,z=-19+rng()*57;if(elevation(x,z)<-2)fish.push(x,.2,z);}
   const fishPoints=points(fish,0xaadacc,.23,.5,g);motions.push({update:(_,t)=>{fishPoints.rotation.y=Math.sin(t*.06)*.016;}});
   makeWhale(g);
+}
+
+function makeVegetation(data){
+  const groups=[null,[],[],[]],stems=[],n=data.grid;
+  // Jitter the sampled patches within their cells; these are not individual tree locations.
+  for(const [i,j,kind,h] of data.points){
+    const x=((i+.5+(rng()-.5)*.6)/n-.5)*WIDTH,z=((j+.5+(rng()-.5)*.6)/n-.5)*DEPTH;
+    if(elevation(x,z)<1)continue;
+    const y=ground(x,z),height=kind===1?Math.max(.13,Math.min(h/4,35)*.0105):kind===2?.10:.035;
+    groups[kind].push(x,y+height,z);
+    if(kind===1&&rng()<.15)stems.push(x,y+.02,z,x,y+height,z);
+  }
+  points(groups[1],0x99dfb5,.43,.73,layers[2]);
+  points(groups[2],0x79bfa6,.25,.42,layers[2]);
+  points(groups[3],0xbbcf91,.19,.28,layers[2]);
+  lines(stems,0x80c9ad,.28,layers[2]);
+  stats.mappedWoodlandPatches=groups[1].length/3;stats.mappedScrubPatches=groups[2].length/3;stats.mappedHerbaceousPatches=groups[3].length/3;
 }
 
 function makeBuiltWorld(){
@@ -363,6 +381,8 @@ async function boot(){
   try{
     initRenderer();setupUI();
     new IntersectionObserver(entries=>{sceneInView=entries[0].isIntersecting;},{threshold:0}).observe($('#bay-hero'));
+    const regionalResult=fetchAsset('regional.json').then(value=>({value}),error=>({error}));
+    const vegetationResult=fetchAsset('vegetation.json').then(value=>({value}),error=>({error}));
     const hydroResult=fetchAsset('hydrography.geojson').then(value=>({value}),error=>({error}));
     const cityLoad=Promise.all([fetchAsset('buildings.lite.json'),fetchAsset('trees.json'),fetchAsset('streets.json'),fetchAsset('city.mesh.i16','binary'),fetchAsset('city.edges.i16','binary')]);
     const terrainLoad=Promise.all([fetchAsset('elevation.f32','binary'),fetchAsset('terrain.contours.i16','binary'),fetchAsset('terrain.coast.i16','binary')]);
@@ -376,10 +396,22 @@ async function boot(){
     await new Promise(requestAnimationFrame);
     const result=await cityResult;if(result.status==='rejected')throw result.reason;
     const [b,t,s,c,e]=result.value;buildings=b;trees=t;streets=s;packedCity=new Int16Array(c);packedEdges=new Int16Array(e);
-    makeLivingSystems();await new Promise(requestAnimationFrame);makeBuiltWorld();
+    makeLivingSystems();await new Promise(requestAnimationFrame);
+    const regional=await regionalResult;
+    if(regional.value){
+      const major=[];
+      for(const r of regional.value.roads){
+        const pieces=[];let current=[];
+        for(const p of r.p){if(p[0]>=BOUNDS[0]&&p[0]<=BOUNDS[2]&&p[1]>=BOUNDS[1]&&p[1]<=BOUNDS[3])current.push(p);else{if(current.length>1)pieces.push(current);current=[];}}if(current.length>1)pieces.push(current);
+        for(const path of pieces){const outside=path.some(p=>p[1]>37.815||p[0]>-122.35);if(outside)streets.push(path);if(r.major){const pts=path.map(p=>world(...p,.09));for(let i=1;i<pts.length;i++)major.push(...pts[i-1].toArray(),...pts[i].toArray());}}
+      }
+      lines(major,0xeacb93,.35,layers[3]);stats.regionalRoads=regional.value.roads.length;stats.regionalBuildings=regional.value.source.buildingCount;
+    }
+    makeBuiltWorld();
+    const vegetation=await vegetationResult;if(vegetation.value)makeVegetation(vegetation.value);else console.warn('Vegetation unavailable',vegetation.error);
     const hydro=await hydroResult;if(hydro.value)makeHydrography(hydro.value);else console.warn('Hydrography unavailable',hydro.error);
     layers[2].userData.reveal=0;layers[3].userData.reveal=0;state.ready=true;
     $('#scene').dataset.fullSceneMs=String(Math.round(performance.now()-startupAt));
-    $('#mapped-data-copy').textContent=`${buildings.length.toLocaleString()} simplified San Francisco building footprints, ${streets.length.toLocaleString()} sampled street segments, and ${trees.length.toLocaleString()} mapped points from a historical street-tree inventory. These are partial source snapshots, not a present-day census. Regional forest placement, crown sizes and landmark meshes are illustrative.`;
+    $('#mapped-data-copy').textContent=`${buildings.length.toLocaleString()} simplified building footprints across the visible Bay slice, ${streets.length.toLocaleString()} sampled street segments, and ${trees.length.toLocaleString()} mapped points from a historical street-tree inventory. These are partial source snapshots, not a present-day census. Marin vegetation patches follow a historical mapped lifeform classification. Missing regional building heights use an illustrative two-storey default. Crown sizes, SF park sketches and landmark meshes are illustrative.`;
   }catch(error){console.error(error);const loader=$('#loading');if(loader)loader.style.display='none';$('#error-copy').textContent=error.message;$('#error-panel').hidden=false;}
 }boot();

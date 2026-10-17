@@ -10,7 +10,7 @@
   "height_min_m": -113.03356170654297,
   "height_max_m": 783.7405395507812,
   "raw_building_count": 20000,
-  "rendered_building_count": 9983,
+  "rendered_building_count": 16575,
   "retrieved": "2026-10-17",
   "sources": [
     {
@@ -63,8 +63,26 @@
       "url": "https://watersgeo.epa.gov/arcgis/rest/services/NHDPlus/NHDPlus/MapServer/2",
       "kind": "mapped_historical",
       "notes": "Medium-resolution mapped streams, including intermittent channels. Smaller streams retained in this Bay Area crop; adapted from Anselm\u2019s Water Atlas. Not live water extent or discharge. Query URL and feature identifiers retained in hydrography.geojson."
+    },
+    {
+      "id": "marin-vegetation",
+      "title": "Marin County Fine Scale Vegetation Map, state agency mirror",
+      "url": "https://services2.arcgis.com/Uq9r85Potqm3MfRV/ArcGIS/rest/services/biosds2960_fpu/FeatureServer/0",
+      "kind": "mapped_historical",
+      "notes": "2018 landscape classification, 2019 LiDAR stand heights. Golden Gate National Parks Conservancy / Tukman Geospatial and project partners. Generalized polygons rasterized to 512-cell grid, grouped forest, scrub and herbaceous cover. Dots are display samples, not individual surveyed trees."
+    },
+    {
+      "id": "osm-regional",
+      "title": "OpenStreetMap regional roads and buildings",
+      "url": "https://www.openstreetmap.org/copyright",
+      "license": "ODbL 1.0",
+      "kind": "mapped_snapshot",
+      "notes": "Regional footprints spatially sampled outside SF. Height or levels used where present; otherwise an illustrative 6.2 m default. Major roads emphasized. Way IDs and query retained in regional assets and preparation cache."
     }
   ],
   "street_segments": 12000,
-  "mapped_street_trees": 8000
+  "mapped_street_trees": 8000,
+  "regional_building_count": 6592,
+  "regional_road_features": 27540,
+  "vegetation_display_patches": 33471
 }
