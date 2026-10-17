@@ -14,4 +14,6 @@ Read in this order:
 
 6. [Camera speed](20261017-camera-speed.md) — a faster default and an adjustable camera-only multiplier.
 
+7. [Bridge fly-throughs](20261017-bridge-flythroughs.md) — descend through the bridge towers and unlock closer manual exploration.
+
 Future entries should be short and written when meaningful decisions happen. Preserve uncertainty and abandoned approaches when they explain a choice. Keep measured results tied to their conditions; avoid turning an illustrative landscape into a claim of an operational twin.

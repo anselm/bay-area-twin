@@ -16,13 +16,28 @@ const tourTangent=new THREE.Vector3(),tourAhead=new THREE.Vector3(),tourTurn=new
 const tourStops=[
   {name:'Bay overview',position:[144,121,177],target:[0,22,0]},
   {name:'San Francisco',position:[105,98,119],target:[8,47,15]},
-  {name:'Bay Bridge & East Bay',position:[151,103,-16],target:[28,47,1]},
+  {name:'Bay Bridge approach',position:[39,70,32],target:[22,47.3,3]}
+];
+function bridgeFlight(name,start,end,eyeHeight){
+  const a=new THREE.Vector3(...start),b=new THREE.Vector3(...end),direction=b.clone().sub(a).normalize();
+  for(const t of [-.4,0,.5,1,1.4]){
+    const p=a.clone().lerp(b,t);p.y=46.05+eyeHeight;
+    const q=p.clone().addScaledVector(direction,4);q.y=p.y;
+    tourStops.push({name,position:p.toArray(),target:q.toArray()});
+  }
+}
+// Eye-height passes follow the center of the simplified bridge decks, between tower crossbars.
+bridgeFlight('Through the Bay Bridge',[18.5,0,6.99375],[25,0,-.99911],1.23);
+tourStops.push(
   {name:'Across the Bay',position:[100,133,-136],target:[26,36,-18]},
   {name:'Marin woodland',position:[-35,108,-151],target:[-19,35,-25]},
-  {name:'Golden Gate',position:[-137,91,-52],target:[-5,47,-3]},
+  {name:'Golden Gate approach',position:[-15,73,23],target:[-5,47.7,-3]}
+);
+bridgeFlight('Through the Golden Gate',[-3.80263,0,.48290],[-5.84211,0,-7.62652],1.65);
+tourStops.push(
   {name:'Coast & seabed',position:[-132,78,87],target:[-18,7,9]},
   {name:'Living layers',position:[-33,142,193],target:[-8,26,0]}
-];
+);
 const tourPath=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...s.position)),true,'centripetal');
 const tourLook=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...s.target)),true,'centripetal');
 const requestedSpeed=Number(params.get('speed')??4);
@@ -66,12 +81,12 @@ function initRenderer(){
   renderer.setClearColor(0x071019,0);
   $('#scene').appendChild(renderer.domElement);
   scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x071019,.0018);
-  camera=new THREE.PerspectiveCamera(32,1,.2,1500);
+  camera=new THREE.PerspectiveCamera(32,1,.02,1500);
   scene.add(new THREE.HemisphereLight(0xb3dfdf,0x112d3d,1.25));
   const key=new THREE.DirectionalLight(0xc0dfd4,2.5);key.position.set(-45,80,20);scene.add(key);
   const fill=new THREE.DirectionalLight(0x6188a0,1);fill.position.set(50,25,-40);scene.add(fill);
   root=new THREE.Group();scene.add(root);
-  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.045;controls.enablePan=true;controls.enableZoom=true;controls.enabled=interactive;controls.minDistance=85;controls.maxDistance=360;controls.minPolarAngle=.2;controls.maxPolarAngle=Math.PI*.48;controls.rotateSpeed=.45;controls.zoomSpeed=.7;
+  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.045;controls.enablePan=true;controls.enableZoom=true;controls.enabled=interactive;controls.minDistance=.4;controls.maxDistance=360;controls.minPolarAngle=.2;controls.maxPolarAngle=Math.PI*.85;controls.rotateSpeed=.45;controls.zoomSpeed=.7;
   controls.addEventListener('start',()=>{dragging=true;state.draggedAt=performance.now()/1000;});
   controls.addEventListener('end',()=>{dragging=false;state.draggedAt=performance.now()/1000;});
   setBackground(initialBackground);if(!params.has('bg')&&params.get('transparent')!=='1')document.documentElement.classList.remove('custom-background');setInteractive(interactive);resetView(false);resize();new ResizeObserver(resize).observe($('#bay-hero'));
@@ -101,10 +116,14 @@ function moveCamera(dt,now){
     cameraTravel+=dt*state.cameraSpeed;const phase=(cameraTravel/110)%1;
     $('#scene').dataset.tourProgress=phase.toFixed(4);
     tourPath.getPoint(phase,tourPosition);tourLook.getPoint(phase,tourTarget);
-    tourTarget.y*=(.18+state.spread*18.5)/(.18+.82*18.5);
-    // Leave breathing room on narrow embeds; all flight paths stay outside the layer volume.
-    if(camera.aspect<1.15)tourPosition.sub(tourTarget).multiplyScalar(1.2).add(tourTarget);
-    const blend=1-Math.exp(-dt*.7*Math.sqrt(state.cameraSpeed));camera.position.lerp(tourPosition,blend);controls.target.lerp(tourTarget,blend);
+    const spacing=.18+state.spread*18.5,reference=.18+.82*18.5;
+    const close=clamp((76-tourPosition.y)/22,0,1),layerShift=3*(spacing-reference);
+    tourPosition.y+=layerShift*close;
+    tourTarget.y=mix(tourTarget.y*spacing/reference,tourTarget.y+layerShift,close);
+    // Wide shots breathe on narrow embeds; bridge passes retain their precise centerline.
+    if(camera.aspect<1.15)tourPosition.sub(tourTarget).multiplyScalar(1+.2*(1-close)).add(tourTarget);
+    const follow=mix(.7*Math.sqrt(state.cameraSpeed),24,close);
+    const blend=1-Math.exp(-dt*follow);camera.position.lerp(tourPosition,blend);controls.target.lerp(tourTarget,blend);
     tourPath.getTangent(phase,tourTangent);tourPath.getTangent((phase+.006)%1,tourAhead);
     tourTurn.crossVectors(tourTangent,tourAhead);
     // A few degrees of damped bank suggest turning forces without a rolling horizon.
@@ -115,6 +134,7 @@ function moveCamera(dt,now){
   $('#scene').dataset.cameraBank=String(+(cameraBank*180/Math.PI).toFixed(2));
   $('#scene').dataset.cameraMode=state.cameraMode;
   $('#scene').dataset.cameraSpeed=String(state.cameraSpeed);
+  $('#scene').dataset.cameraDistance=String(+camera.position.distanceTo(controls.target).toFixed(3));
   $('#scene').dataset.cameraAutomatic=String(automatic);
 }
 // The embedding parent can configure display options; no arbitrary scripts or data access.
@@ -406,7 +426,7 @@ function updateAnnotations(){
   for(const [id,lon,lat,level,dx,dy] of [['gate',-122.478,37.820,3,12,-14],['sf',-122.43,37.758,3,-12,18],['marin',-122.53,37.868,0,-20,-12],['bart',-122.342,37.796,3,8,16],['alcatraz',-122.423,37.827,0,7,-9],['angel',-122.4326,37.862,2,10,-8],['baybridge',-122.376,37.801,3,8,-15],['presidio',-122.466,37.798,2,-14,15]]){
     const p=world(lon,lat);p.y+=layers[level].position.y+.8;p.applyMatrix4(root.matrixWorld).project(camera);
     const el=$('#landmark-'+id),x=(p.x*.5+.5)*w+dx,y=(-p.y*.5+.5)*h+dy;
-    el.style.transform=`translate(${x}px,${y}px)`;el.style.opacity=(id==='bart'?state.focus===3:state.focus<0||state.focus===level)&&x>15&&x<w-110&&y>88&&y<h-150?'.82':'0';
+    el.style.transform=`translate(${x}px,${y}px)`;el.style.opacity=(id==='bart'?state.focus===3:state.focus<0||state.focus===level)&&p.z>=-1&&p.z<=1&&x>15&&x<w-110&&y>88&&y<h-150?'.82':'0';
   }
 }
 function setupUI(){

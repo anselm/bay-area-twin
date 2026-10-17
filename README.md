@@ -22,7 +22,7 @@ Open http://127.0.0.1:4177. Any ordinary static server can serve `dist/`.
 
 ## Explore
 
-- Drag to orbit, scroll/pinch to zoom, right-drag to pan.
+- Drag to orbit, scroll/pinch to zoom, right-drag to pan. Zoom now reaches bridge-detail scale; orbit can also reveal the undersides of layers.
 - Select a layer to emphasize it; select again to show the full stack.
 - Use separation or Bring together to assemble the systems onto shared geography.
 - Scrub the day/night cycle or pause motion. Space pauses when focus is outside a control; number keys 1–4 select layers; Escape clears layer focus.
@@ -221,6 +221,10 @@ Supported fields: `speed` (numeric, 0.25–12), `background` (transparent or six
 
 ### Automatic camera choreography
 
-The tour is now the default even when `camera` is omitted. It starts as soon as the terrain renders, follows a closed centripetal spline through points of interest, and gently banks into turns (capped below 4 degrees). The camera remains outside the separated layers. Mouse/touch interaction takes over immediately; after 12 seconds idle, the tour blends back from the visitor's chosen view without a cut. Reduced motion still starts paused. Existing embeds explicitly specifying `camera=orbit` or `camera=static` retain that choice; remove that parameter or use `camera=tour` to adopt the tour. Host controls sending `playing:false` must also be removed or resumed for autoplay.
+The tour is now the default even when `camera` is omitted. It starts as soon as the terrain renders, follows a closed centripetal spline through points of interest, and gently banks into turns (capped below 4 degrees). The route mixes wide views with close centerline passes through the simplified Bay Bridge and Golden Gate towers, moving with the built layer when separation changes. Mouse/touch interaction takes over immediately; after 12 seconds idle, the tour blends back from the visitor's chosen view without a cut. Reduced motion still starts paused. Existing embeds explicitly specifying `camera=orbit` or `camera=static` retain that choice; remove that parameter or use `camera=tour` to adopt the tour. Host controls sending `playing:false` must also be removed or resumed for autoplay.
 
 The camera now defaults to `speed=4` after feedback that the initial tour felt too slow. Use the URL parameter or parent message `{type: "bay-layers:configure", speed: 6}` to adjust it. Speed changes preserve tour progress and the idle takeover behavior.
+
+### Bridge fly-throughs
+
+The tour now descends into the built layer and follows both bridge centerlines between the stylized tower crossbars, then returns to wider landscape views. Close passes tighten camera following so smoothing does not cut across the bridge line. The camera near plane is 0.02 scene units and manual minimum orbit distance is 0.4 (previously 85), allowing visitors to explore details after taking over. These are artistic fly-throughs of simplified geometry, not navigation-grade collision simulation.
