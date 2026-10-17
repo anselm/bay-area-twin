@@ -1,0 +1,24 @@
+{
+  "scale": 512,
+  "buildings": 9983,
+  "city.mesh": {
+    "values": 2146581,
+    "rawBytes": 4293162,
+    "gzipBytes": 1227161
+  },
+  "city.edges": {
+    "values": 798618,
+    "rawBytes": 1597236,
+    "gzipBytes": 792754
+  },
+  "terrain.contours": {
+    "values": 46392,
+    "rawBytes": 92784,
+    "gzipBytes": 41875
+  },
+  "terrain.coast": {
+    "values": 9480,
+    "rawBytes": 18960,
+    "gzipBytes": 8495
+  }
+}

@@ -19,12 +19,12 @@ Open http://127.0.0.1:4177. Any ordinary static server can serve `dist/`.
 - Use separation or Bring together to assemble the systems onto shared geography.
 - Scrub the day/night cycle or pause motion. Space pauses when focus is outside a control; number keys 1–4 select layers; Escape clears layer focus.
 - Behind the layers describes sources and the distinction between mapped and illustrated systems.
-- `?embed=1` provides a compact header mode. `embed.html` gives an iframe example.
+- `?backdrop=1` hides the interface and retains motion and place annotations, with a 30 fps cap. `?embed=1` provides a compact interactive header. `embed.html` gives an iframe example.
 - Reduced-motion preference starts paused with orbit off; the user can start it explicitly.
 
 ## Data and honesty
 
-`dist/assets/sources.json` is the source manifest. The downloaded NOAA F32 elevation/bathymetry grid is real, with historical and mixed-datum sources, resampled to 513×513. The terrain mesh uses 193×193 vertices. Its vertical scale is intentionally exaggerated.
+`dist/assets/sources.json` is the source manifest. The downloaded NOAA F32 elevation/bathymetry grid is real, with historical and mixed-datum sources, resampled to 513×513. The terrain mesh uses 129×129 vertices. Its vertical scale is intentionally exaggerated.
 
 Building footprints/heights are simplified from a bounded 20,000-feature San Francisco municipal-source sample served through a public ArcGIS mirror. A spatial sampling step retains 9,983 rendered buildings. They are footprint extrusions, not photogrammetric facades. Other Bay Area cities are not yet represented by building data.
 
@@ -35,7 +35,7 @@ This is a visual explanation of a twin's component systems, not an operational p
 ## Architecture
 
 - Buildless ES modules, Three.js WebGL2, merged building/line geometries, batched particles, shared coordinates and deterministic procedural sketches.
-- Static assets total roughly 6 MB uncompressed; no runtime map API, analytics, or external CDN calls.
+- All geographic data and geometry are bundled snapshots; no runtime map API, analytics, or external CDN calls. Compressed geometry loads in parallel; the terrain appears before the city finishes assembling. Rendering pauses offscreen and in hidden tabs.
 - `dist/main.js`: scene, geographic transforms, render batches, motion and controls.
 - `dist/style.css`: wide hero, mobile and compact embed layouts.
 - `scripts/fetch-data.py`, `fetch-features.py`, `prepare-data.py`: reproducible bounded data acquisition and reduction, with raw request URLs cached locally. Python with Pillow and NumPy is required only to rebuild data.
@@ -49,3 +49,22 @@ Three.js was chosen to keep iteration focused on the composition, data and inter
 3. Observed weather and tide snapshots, each with timestamps and uncertainty.
 4. A small explicit intervention with a documented model and feedback path.
 5. Profiling on target embedded/mobile devices before choosing a WebGPU migration or tiled streaming strategy.
+
+## Life in the layers
+
+The built layer includes brighter moving city headlights, two-way bridge traffic, three quiet sailboats, and a schematic twin-bore BART crossing with moving trains. Selecting the built layer emphasizes the crossing and reveals its label. The living layer includes an occasional whale silhouette and a short surface ripple/spout. These motions are intentionally expressive rather than time-realistic. They pause with the shared playback control. The BART alignment/depth is approximate and animal movement is not tracking data.
+
+## Static data preparation
+
+Visitors fetch only files from this site. NOAA and ArcGIS are contacted only when deliberately refreshing the saved snapshots; development and deployment do not refetch them.
+
+```sh
+# Optional: refresh downloaded snapshots (Python, Pillow and NumPy required).
+npm run data:fetch
+# Reduce the snapshots and prebuild packed city geometry and terrain contours.
+npm run data:prepare
+# Or rebuild geometry alone from the existing prepared data.
+npm run prepare:geometry
+```
+
+Commit the prepared `dist/assets/` files with the site. Raw downloads are cached under `scripts/cache/` and excluded from source control. The browser uses gzip assets with native decompression, with uncompressed equivalents for older browsers. Data are historical samples, not live feeds. The backdrop's wind, traffic, fog, animals and day/night cycle are illustrative. Decorative building lights fade with the day/night cycle.

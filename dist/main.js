@@ -2,15 +2,20 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const $=s=>document.querySelector(s);
-const isEmbed=new URLSearchParams(location.search).has('embed');
+const params=new URLSearchParams(location.search);
+const isBackdrop=params.has('backdrop');
+const isEmbed=params.has('embed')||isBackdrop;
 if(isEmbed)document.body.classList.add('embed');
+if(isBackdrop)document.body.classList.add('backdrop');
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false};
 const COLORS=[0x60b4b4,0x7dd7f2,0xa0ddb1,0xf1cc91];
 const BOUNDS=[-122.65,37.67,-122.27,37.95];
 const WIDTH=100,DEPTH=93.25;
 const layers=[];const motions=[];const visualMaterials=[];
-let scene,camera,renderer,controls,heightGrid,buildings,trees,streets,root,coast,stats={};
+let scene,camera,renderer,controls,heightGrid,buildings,trees,streets,root,coast,packedCity,packedEdges,packedContours,packedCoast,stats={};
+let sceneInView=true;
+const startupAt=performance.now();
 const tmp=new THREE.Vector3();
 const rng=(seed=>()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;})(91827);
 const mix=THREE.MathUtils.lerp;
@@ -35,7 +40,7 @@ const GLOW=glowTexture();
 function points(positions,color,size,opacity,group){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));const m=material('PointsMaterial',{color,size,map:GLOW,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});const p=new THREE.Points(g,m);group.add(p);return p;}
 function initRenderer(){
   renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));
+  renderer.setPixelRatio(Math.min(devicePixelRatio,isBackdrop?1.35:1.6));
   renderer.outputColorSpace=THREE.SRGBColorSpace;
   renderer.setClearColor(0x071019,0);
   $('#scene').appendChild(renderer.domElement);
@@ -45,7 +50,7 @@ function initRenderer(){
   const key=new THREE.DirectionalLight(0xc0dfd4,2.5);key.position.set(-45,80,20);scene.add(key);
   const fill=new THREE.DirectionalLight(0x6188a0,1);fill.position.set(50,25,-40);scene.add(fill);
   root=new THREE.Group();scene.add(root);
-  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.045;controls.enablePan=true;controls.minDistance=85;controls.maxDistance=360;controls.minPolarAngle=.2;controls.maxPolarAngle=Math.PI*.48;controls.rotateSpeed=.45;controls.zoomSpeed=.7;
+  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.045;controls.enablePan=!isBackdrop;controls.enableZoom=!isBackdrop;controls.minDistance=85;controls.maxDistance=360;controls.minPolarAngle=.2;controls.maxPolarAngle=Math.PI*.48;controls.rotateSpeed=.45;controls.zoomSpeed=.7;
   controls.addEventListener('start',()=>{state.draggedAt=performance.now()/1000;});
   controls.addEventListener('end',()=>{state.draggedAt=performance.now()/1000;});
   resetView(false);resize();new ResizeObserver(resize).observe($('#bay-hero'));
@@ -55,7 +60,7 @@ function resetView(animate=true){
   const mobile=$('#bay-hero').clientWidth<700;
   const position=mobile?new THREE.Vector3(176,157,222):new THREE.Vector3(144,121,177);
   // The model lives slightly to the right, leaving the introduction quiet.
-  if(animate){const from=camera.position.clone(),fromTarget=controls.target.clone();let t=0;motions.push({once:true,update:dt=>{t+=dt*.8;const k=1-Math.pow(1-clamp(t,0,1),3);camera.position.lerpVectors(from,position,k);controls.target.lerpVectors(fromTarget,new THREE.Vector3(mobile?0:-7,mobile?20:16,0),k);return t>=1;}});}else{camera.position.copy(position);controls.target.set(mobile?0:-7,mobile?20:16,0);controls.update();}
+  if(animate){const from=camera.position.clone(),fromTarget=controls.target.clone();let t=0;motions.push({once:true,update:dt=>{t+=dt*.8;const k=1-Math.pow(1-clamp(t,0,1),3);camera.position.lerpVectors(from,position,k);controls.target.lerpVectors(fromTarget,new THREE.Vector3(mobile||isBackdrop?0:-7,mobile?20:16,0),k);return t>=1;}});}else{camera.position.copy(position);controls.target.set(mobile||isBackdrop?0:-7,mobile?20:16,0);controls.update();}
 }
 function resize(){if(!renderer)return;const {width,height}=$('#bay-hero').getBoundingClientRect();renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();}
 
@@ -67,7 +72,7 @@ function makeTerrain(){
     lines(corner,COLORS[level],.65,g);
     const fine=[];for(let i=0;i<=40;i++){const x=-50+i*2.5;fine.push(x,-.2,-DEPTH/2,x,-.2,DEPTH/2);}for(let i=0;i<=36;i++){const z=-DEPTH/2+i*DEPTH/36;fine.push(-50,-.2,z,50,-.2,z);}lines(fine,COLORS[level],level===0?.06:.032,g);
     // Each layer shares the same georeferenced relief, allowing a true reassembly.
-    const n=192,geom=new THREE.PlaneGeometry(WIDTH,DEPTH,n,n);geom.rotateX(-Math.PI/2);
+    const n=128,geom=new THREE.PlaneGeometry(WIDTH,DEPTH,n,n);geom.rotateX(-Math.PI/2);
     const p=geom.attributes.position,colors=new Float32Array(p.count*3),c=new THREE.Color();
     for(let i=0;i<p.count;i++){
       const x=p.getX(i),z=p.getZ(i),h=elevation(x,z);p.setY(i,relief(h));
@@ -95,20 +100,16 @@ function makeTerrain(){
   const strata=[];for(const y of [-4,-3,-2])for(let i=1;i<rim.length;i++)strata.push(rim[i-1][0],y,rim[i-1][1],rim[i][0],y,rim[i][1]);lines(strata,0x3e8790,.14,layers[0]);
   makeContours();
 }
+function packedGeometry(data){
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Int16BufferAttribute(data,3));g.boundingSphere=new THREE.Sphere(new THREE.Vector3(),80*512);return g;
+}
+function packedLines(data,color,opacity,group){
+  const m=material('LineBasicMaterial',{color,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending});
+  const mesh=new THREE.LineSegments(packedGeometry(data),m);mesh.scale.setScalar(1/512);group.add(mesh);return mesh;
+}
 function makeContours(){
-  const n=192,all=[],coastline=[];
-  for(const lev of [-100,-75,-50,-25,-10,0,50,100,200,400,600]){
-    const out=lev===0?coastline:all;
-    for(let j=0;j<n;j++)for(let i=0;i<n;i++){
-      const x=-50+i*WIDTH/n,z=-DEPTH/2+j*DEPTH/n;
-      const corners=[[x,z],[x+WIDTH/n,z],[x+WIDTH/n,z+DEPTH/n],[x,z+DEPTH/n]];
-      const h=corners.map(p=>elevation(...p)),cross=[];
-      for(let edge=0;edge<4;edge++){const a=edge,b=(edge+1)%4;if((h[a]<=lev&&h[b]>lev)||(h[b]<=lev&&h[a]>lev)){const k=(lev-h[a])/(h[b]-h[a]);cross.push([mix(corners[a][0],corners[b][0],k),relief(lev)+.08,mix(corners[a][1],corners[b][1],k)]);}}
-      if(cross.length>=2)out.push(...cross[0],...cross[1]);if(cross.length===4)out.push(...cross[2],...cross[3]);
-    }
-  }
-  lines(all,0x8ac3bc,.30,layers[0]);coast=coastline;
-  for(let level=0;level<4;level++)lines(coastline,COLORS[level],level===0?.65:.38,layers[level]);
+  packedLines(packedContours,0x8ac3bc,.30,layers[0]);
+  for(let level=0;level<4;level++)packedLines(packedCoast,COLORS[level],level===0?.65:.38,layers[level]);
 }
 
 function makeForces(){
@@ -125,6 +126,16 @@ function makeForces(){
   const rays=[];for(let i=0;i<12;i++)rays.push(-43+i*7.5,10,-29,-43+i*7.5,1,-21);
   const sunlight=lines(rays,0xf2d8a1,.1,g);sunlight.userData.sunlight=true;
   motions.push({update:()=>{const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));sunlight.material.userData.dynamicGain=daylight;sunlight.rotation.y=Math.sin(state.time/24*Math.PI*2)*.15;}});
+  makeClouds(g);
+}
+function makeClouds(g){
+  // Low-density illustrated marine fog, leaving the land and shorelines legible.
+  for(let i=0;i<7;i++){
+    const m=material('SpriteMaterial',{color:0xb6d3dc,map:GLOW,transparent:true,opacity:.045,depthWrite:false,blending:THREE.AdditiveBlending});
+    const cloud=new THREE.Sprite(m);cloud.scale.set(7+i%3*2,.7+i%2*.35,1);g.add(cloud);
+    const x=-36+i*5.6,z=-8+Math.sin(i*.8)*4;
+    motions.push({update:(_,t)=>{cloud.position.set(x+Math.sin(t*.015+i)*2.4,8.5+Math.sin(i)*.3,z+Math.sin(t*.019+i)*1.2);m.userData.dynamicGain=.65+Math.sin(t*.05+i)*.25;}});
+  }
 }
 
 function makeLivingSystems(){
@@ -152,31 +163,23 @@ function makeLivingSystems(){
   motions.push({update:(_,t)=>{seeds.forEach((s,i)=>{const a=s.p+t*s.s,x=s.x+Math.sin(a)*s.r,z=s.z+Math.cos(a)*s.r*.6,y=ground(x,z)+s.y,wing=Math.sin(t*5+s.p)*.12;bp.set([x-.22,y+wing,z,x,y,z+.06,x,y,z+.06,x+.22,y+wing,z],i*12);});bg.attributes.position.needsUpdate=true;}});
   const fish=[];for(let i=0;i<130;i++){const x=-8+rng()*35,z=-19+rng()*57;if(elevation(x,z)<-2)fish.push(x,.2,z);}
   const fishPoints=points(fish,0xaadacc,.23,.5,g);motions.push({update:(_,t)=>{fishPoints.rotation.y=Math.sin(t*.06)*.016;}});
+  makeWhale(g);
 }
 
 function makeBuiltWorld(){
-  const g=layers[3],vertices=[],edges=[],roofColor=[],gold=new THREE.Color(0xb79464),warm=new THREE.Color(0xe2cba4);
-  for(const b of buildings){
-    const ring=b.p.map(p=>xy(p[0],p[1]));if(ring.length<3)continue;
-    const [cx,cz]=xy(b.c[0],b.c[1]);const y=ground(cx,cz)+.05,h=Math.max(.055,b.h*.0105);
-    const contour=ring.map(([x,z])=>new THREE.Vector2(x,z));const roof=THREE.ShapeUtils.triangulateShape(contour,[]);
-    for(const tri of roof)for(const k of tri){vertices.push(ring[k][0],y+h,ring[k][1]);roofColor.push(warm.r,warm.g,warm.b);}
-    for(let i=0;i<ring.length;i++){
-      const a=ring[i],b=ring[(i+1)%ring.length];vertices.push(a[0],y,a[1],a[0],y+h,a[1],b[0],y+h,b[1],a[0],y,a[1],b[0],y+h,b[1],b[0],y,b[1]);
-      for(let k=0;k<6;k++)roofColor.push(gold.r,gold.g,gold.b);
-      edges.push(a[0],y+h+.012,a[1],b[0],y+h+.012,b[1]);
-      if(b.h>35||i%2===0)edges.push(a[0],y,a[1],a[0],y+h,a[1]);
-    }
-  }
-  const geom=new THREE.BufferGeometry();geom.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geom.setAttribute('color',new THREE.Float32BufferAttribute(roofColor,3));geom.computeVertexNormals();
-  g.add(new THREE.Mesh(geom,material('MeshBasicMaterial',{vertexColors:true,transparent:true,opacity:.07,side:THREE.DoubleSide,depthWrite:false})));
-  const buildingWire=lines(edges,0xe7b471,.42,g);buildingWire.material.blending=THREE.NormalBlending;buildingWire.material.userData.cityLights=true;
+  const g=layers[3];
+  const city=new THREE.Mesh(packedGeometry(packedCity),material('MeshBasicMaterial',{color:0xbca078,transparent:true,opacity:.07,side:THREE.DoubleSide,depthWrite:false}));city.scale.setScalar(1/512);g.add(city);
+  const buildingWire=packedLines(packedEdges,0xe7b471,.42,g);buildingWire.material.blending=THREE.NormalBlending;buildingWire.material.userData.cityLights=true;
   stats.buildings=buildings.length;
+  makeBuildingLights(g);
   const roadPositions=[],routes=[];
   for(const path of streets){const pts=path.map(c=>world(c[0],c[1],.07));for(let i=1;i<pts.length;i++){if(pts[i].distanceTo(pts[i-1])>8)continue;roadPositions.push(...pts[i-1].toArray(),...pts[i].toArray());if(pts[i].distanceTo(pts[i-1])>.12)routes.push([pts[i-1],pts[i]]);}}
   const road=lines(roadPositions,0xe2bb88,.17,g);road.material.userData.cityLights=true;stats.streetSegments=streets.length;
-  const cpos=new Float32Array(420*3),car=points(cpos,0xffe2ae,.27,.85,g),seeds=Array.from({length:420},()=>({route:routes[Math.floor(rng()*routes.length)],p:rng(),s:.07+rng()*.14}));
-  motions.push({update:(_,t)=>{seeds.forEach((s,i)=>{if(!s.route)return;tmp.lerpVectors(s.route[0],s.route[1],(s.p+t*s.s)%1);tmp.y+=.04;cpos.set(tmp.toArray(),i*3);});car.geometry.attributes.position.needsUpdate=true;}});
+  const carCount=760,cpos=new Float32Array(carCount*3),car=points(cpos,0xffe2ae,.42,.9,g),seeds=Array.from({length:carCount},()=>({route:routes[Math.floor(rng()*routes.length)],p:rng(),s:.09+rng()*.17,reverse:rng()<.5}));
+  const carStreaks=new Float32Array(carCount*6),carLines=lines(carStreaks,0xffd39b,.48,g);
+  car.material.userData.cityLights=true;
+  motions.push({update:(_,t)=>{seeds.forEach((s,i)=>{if(!s.route)return;const u=(s.p+t*s.s)%1,at=s.reverse?1-u:u,behind=clamp(at+(s.reverse?.07:-.07),0,1);tmp.lerpVectors(s.route[0],s.route[1],at);tmp.y+=.06;cpos.set(tmp.toArray(),i*3);const tail=s.route[0].clone().lerp(s.route[1],behind);tail.y+=.06;carStreaks.set([...tail.toArray(),...tmp.toArray()],i*6);});car.geometry.attributes.position.needsUpdate=true;carLines.geometry.attributes.position.needsUpdate=true;}});
+  stats.animatedCityCars=carCount;
   makeBridge([-122.47445,37.80855],[-122.4822,37.8329],0xf1a979,true,g);
   makeBridge([-122.3897,37.789],[-122.365,37.813],0xe6cda3,false,g);
   makeBridge([-122.365,37.813],[-122.300,37.8245],0xe6cda3,false,g);
@@ -185,6 +188,7 @@ function makeBuiltWorld(){
   landmarkTower(-122.4034,37.7952,2.7,.32,.32,'pyramid',g);
   makeFlight(g);
   makeVessels(g);
+  makeTransbayTube(g);
   // Utility relationships are schematic: moving signals, not an underground utility map.
   const utility=[[-122.511,37.776],[-122.471,37.77],[-122.447,37.775],[-122.418,37.779],[-122.398,37.791]];
   const up=utility.map(p=>world(...p,.1));trail(up.map(p=>[p.x,p.y-.3,p.z]),0x77b5c1,.33,g);
@@ -205,8 +209,9 @@ function makeBridge(start,end,color,gate,g){
     for(let i=0;i<=70;i++){const t=i/70,p=a.clone().lerp(b,t).addScaledVector(side,s);let y;if(t<.25)y=mix(.66,height+.65,t/.25);else if(t>.75)y=mix(height+.65,.66,(t-.75)/.25);else y=.85+(height-.2)*Math.pow((t-.5)/.25,2);p.y=y;if(prev)ps.push(...prev.toArray(),...p.toArray());if(i%3===0)ps.push(p.x,.65,p.z,p.x,y,p.z);prev=p;}
   }
   lines(ps,color,.9,g);
-  const dots=points(new Float32Array(24*3),0xffe5b1,.28,.85,g);
-  motions.push({update:(_,t)=>{const p=dots.geometry.attributes.position;for(let i=0;i<24;i++){tmp.lerpVectors(a,b,(i/24+t*.022)%1);p.setXYZ(i,tmp.x,.69,tmp.z);}p.needsUpdate=true;}});
+  const cars=gate?38:32,dots=points(new Float32Array(cars*3),0xffe5b1,.43,.95,g),streaks=lines(new Float32Array(cars*6),0xffd39b,.74,g);
+  const phase=gate?.14:.39;
+  motions.push({update:(_,t)=>{const p=dots.geometry.attributes.position,q=streaks.geometry.attributes.position;for(let i=0;i<cars;i++){const reverse=i%2===0,u=(i/cars+t*(gate?.036:.043)+phase)%1,f=reverse?1-u:u,lane=reverse?-.34:.34;tmp.lerpVectors(a,b,f).addScaledVector(side,lane);p.setXYZ(i,tmp.x,.72,tmp.z);q.setXYZ(i*2,tmp.x,.72,tmp.z);const back=clamp(f+(reverse?.005:-.005),0,1);tmp.lerpVectors(a,b,back).addScaledVector(side,lane);q.setXYZ(i*2+1,tmp.x,.72,tmp.z);}p.needsUpdate=true;q.needsUpdate=true;}});
 }
 function makeFlight(g){
   const paths=[[[18,9,48],[32,13,10],[9,16,-37]],[[-39,12,28],[-12,16,9],[31,18,-40]]];
@@ -217,11 +222,59 @@ function makeFlight(g){
   }
 }
 function makeVessels(g){
-  const routes=[[[10,.28,3],[14,.28,-8],[1,.28,-24]],[[12,.28,-4],[5,.28,-18],[-13,.28,-21]],[[14,.28,19],[22,.28,4],[25,.28,-12]]];
-  for(let i=0;i<9;i++){
-    const curve=new THREE.CatmullRomCurve3(routes[i%routes.length].map(p=>new THREE.Vector3(...p))),ps=new Float32Array(24),geom=new THREE.BufferGeometry();geom.setAttribute('position',new THREE.BufferAttribute(ps,3));g.add(new THREE.LineSegments(geom,material('LineBasicMaterial',{color:0xc1d8c9,transparent:true,opacity:.6,depthWrite:false})));const seed=i/9;
-    motions.push({update:(_,t)=>{const u=(seed+t*.006)%1,p=curve.getPoint(u),v=curve.getTangent(u),s=new THREE.Vector3(v.z,0,-v.x).multiplyScalar(.10),bow=p.clone().addScaledVector(v,.28),tail=p.clone().addScaledVector(v,-.18),left=tail.clone().add(s),right=tail.clone().sub(s),wake=p.clone().addScaledVector(v,-.8);ps.set([...bow.toArray(),...left.toArray(),...left.toArray(),...right.toArray(),...right.toArray(),...bow.toArray(),...tail.toArray(),...wake.toArray()]);geom.attributes.position.needsUpdate=true;}});
+  const routes=[[[-122.411,37.824],[-122.394,37.842],[-122.375,37.851]],[[-122.397,37.808],[-122.372,37.827],[-122.353,37.843]],[[-122.437,37.816],[-122.417,37.831],[-122.402,37.847]]];
+  for(let i=0;i<3;i++){
+    const path=new THREE.CatmullRomCurve3(routes[i].map(c=>{const [x,z]=xy(...c);return new THREE.Vector3(x,.26,z);}));
+    const boat=new THREE.Group();g.add(boat);
+    const hull=[0,0,-.45,-.17,0,.27,-.17,0,.27,.17,0,.27,.17,0,.27,0,0,-.45,0,0,.05,0,.95,.05,0,.95,.05,-.03,.1,-.30,-.03,.1,-.30,0,.12,.23,0,.12,.23,0,.95,.05,0,.82,.05,.27,.1,.22,.27,.1,.22,0,.12,.20];
+    lines(hull,0xe3e1c5,.72,boat);
+    const sail=new THREE.BufferGeometry();sail.setAttribute('position',new THREE.Float32BufferAttribute([0,.93,.05,-.03,.12,-.30,0,.12,.23,0,.80,.05,.27,.12,.22,0,.12,.20],3));
+    boat.add(new THREE.Mesh(sail,material('MeshBasicMaterial',{color:0xcde5ce,transparent:true,opacity:.13,side:THREE.DoubleSide,depthWrite:false})));
+    const wake=lines([-.1,0,.32,-.22,0,1.45,.1,0,.32,.22,0,1.45],0x9fc5c2,.14,boat);
+    motions.push({update:(_,t)=>{const phase=t*.026+i*1.7,u=.5-.5*Math.cos(phase),p=path.getPoint(u),v=path.getTangent(u);boat.position.copy(p);boat.visible=elevation(p.x,p.z)<-1;boat.rotation.y=Math.atan2(-v.x,-v.z)+(Math.sin(phase)<0?Math.PI:0);boat.rotation.z=Math.sin(t*.8+i)*.045;wake.material.userData.dynamicGain=.7+Math.sin(t*.6+i)*.3;}});
   }
+  stats.sailboats=3;
+}
+function makeTransbayTube(g){
+  // Approximate diagram anchored to Embarcadero and West Oakland, not surveyed alignment/depth.
+  const route=[[-122.397,37.7929],[-122.389,37.7917],[-122.374,37.7898],[-122.348,37.7938],[-122.326,37.8008],[-122.304,37.8043],[-122.2946,37.8049]];
+  const center=new THREE.CatmullRomCurve3(route.map(c=>{const [x,z]=xy(...c);return new THREE.Vector3(x,Math.min(-.45,relief(elevation(x,z))-.25),z);}));
+  const rails=[],rings=[];
+  for(const bore of [-1,1])for(let i=0;i<150;i++){
+    const p=center.getPoint(i/150),q=center.getPoint((i+1)/150),v=center.getTangent(i/150),s=new THREE.Vector3(v.z,0,-v.x).normalize().multiplyScalar(.085*bore);p.add(s);q.add(s);rails.push(...p.toArray(),...q.toArray());
+    if(i%8===0)for(let j=0;j<8;j++){const a=j/8*Math.PI*2,b=(j+1)/8*Math.PI*2;for(const angle of [a,b])rings.push(p.x+s.x*Math.cos(angle)*.65,p.y+Math.sin(angle)*.06,p.z+s.z*Math.cos(angle)*.65);}
+  }
+  const tube=lines(rails,0x96bedf,.25,g),ribs=lines(rings,0x96bedf,.15,g);
+  const trainPositions=new Float32Array(2*5*6),train=lines(trainPositions,0xc2ecff,.86,g),heads=points(new Float32Array(6),0xc3f1ff,.65,.9,g);
+  const stations=route.filter((_,i)=>i===0||i===route.length-1).map(c=>{const [x,z]=xy(...c);return[x,.13,z];});points(stations.flat(),0xbcdbe9,.7,.6,g);
+  motions.push({update:(_,t)=>{
+    const gain=state.focus===3?1.55:.7;tube.material.userData.dynamicGain=gain;ribs.material.userData.dynamicGain=gain;
+    for(let i=0;i<2;i++){
+      const u=(t*.017+i*.53+.18)%1,reverse=i===1,at=reverse?1-u:u,v=center.getTangent(at),side=new THREE.Vector3(v.z,0,-v.x).normalize().multiplyScalar(reverse?.085:-.085);
+      const p=center.getPoint(at).add(side);heads.geometry.attributes.position.setXYZ(i,p.x,p.y+.03,p.z);
+      for(let car=0;car<5;car++)for(let end=0;end<2;end++){const f=clamp(at+(reverse?1:-1)*(car*.0032+end*.0025),0,1),q=center.getPoint(f).add(side);trainPositions.set([q.x,q.y+.02,q.z],(i*10+car*2+end)*3);}
+    }train.geometry.attributes.position.needsUpdate=true;heads.geometry.attributes.position.needsUpdate=true;
+  }});
+  stats.transbayTrains=2;
+}
+function makeBuildingLights(g){
+  const positions=[],seeds=[];
+  for(let i=0;i<buildings.length;i+=3){const b=buildings[i];if(b.h<12)continue;const [x,z]=xy(...b.c),y=ground(x,z),h=b.h*.0105;for(let j=0;j<3;j++){positions.push(x+(j-1)*.045,y+h*(.3+j*.22),z+.04);seeds.push((i%23)/23);}}
+  const light=points(positions,0xffcc86,.22,.8,g),color=new Float32Array(positions.length),warm=new THREE.Color(0xffcc86);
+  light.material.vertexColors=true;light.geometry.setAttribute('color',new THREE.BufferAttribute(color,3));
+  let previous=-1;
+  motions.push({update:()=>{if(Math.abs(state.time-previous)<.025)return;previous=state.time;const hour=state.time<7?state.time+24:state.time;for(let i=0;i<seeds.length;i++){const dusk=17.2+seeds[i]*2.4,dawn=28.6+seeds[i]*1.3;const on=THREE.MathUtils.smoothstep(hour,dusk,dusk+1)*(1-THREE.MathUtils.smoothstep(hour,dawn,dawn+.9));color.set([warm.r*on,warm.g*on,warm.b*on],i*3);}light.geometry.attributes.color.needsUpdate=true;}});
+  stats.illustrativeWindowLights=seeds.length;
+}
+function makeWhale(g){
+  // A quiet, occasional illustrative visitor. It is not an animal-location feed.
+  const whale=new THREE.Group();g.add(whale);
+  const outline=[0,.025,-.8,-.18,.02,-.55,-.18,.02,-.55,-.23,.01,-.12,-.23,.01,-.12,-.16,0,.38,-.16,0,.38,0,0,.63,0,0,.63,.16,0,.38,.16,0,.38,.23,.01,-.12,.23,.01,-.12,.18,.02,-.55,.18,.02,-.55,0,.025,-.8,-.18,.02,-.3,-.44,0,.10,.18,.02,-.3,.44,0,.10,0,0,.63,-.38,.02,.86,-.38,.02,.86,-.08,0,.81,0,0,.63,.38,.02,.86,.38,.02,.86,.08,0,.81];
+  const shape=lines(outline,0xb1d9c5,.58,whale),ripple=lines(new Float32Array(64*6),0x86baa9,.2,whale),spout=lines([0,.05,-.52,-.06,.3,-.52,-.06,.3,-.52,-.13,.4,-.50,0,.05,-.52,.05,.32,-.52,.05,.32,-.52,.12,.41,-.5],0xd0ebdb,.30,whale);
+  const path=new THREE.CatmullRomCurve3([[-122.454,37.826],[-122.434,37.834],[-122.416,37.844]].map(c=>{const [x,z]=xy(...c);return new THREE.Vector3(x,.18,z);}));
+  motions.push({update:(_,t)=>{const cycle=((t+11)%85)/85,reveal=Math.sin(Math.PI*clamp(cycle/.25,0,1)),u=(t*.0022+.3)%1,p=path.getPoint(u),v=path.getTangent(u);whale.position.copy(p);whale.rotation.y=Math.atan2(-v.x,-v.z);whale.visible=cycle<.25&&elevation(p.x,p.z)<-1;shape.material.userData.dynamicGain=Math.max(0,reveal);spout.material.userData.dynamicGain=Math.max(0,Math.sin(cycle/.25*Math.PI*3))*reveal;
+    const ps=ripple.geometry.attributes.position;for(let i=0;i<64;i++){const radius=.5+cycle*4,a=i/64*Math.PI*2,b=(i+1)/64*Math.PI*2;ps.setXYZ(i*2,Math.cos(a)*radius,.015,Math.sin(a)*radius*.55);ps.setXYZ(i*2+1,Math.cos(b)*radius,.015,Math.sin(b)*radius*.55);}ps.needsUpdate=true;ripple.material.userData.dynamicGain=reveal;}});
+  stats.illustrativeWhales=1;
 }
 function makeConnections(){
   const anchors=[[-122.478,37.819],[-122.44,37.77],[-122.4,37.79]],positions=[];
@@ -233,10 +286,10 @@ function makeConnections(){
 
 function updateAnnotations(){
   const w=$('#bay-hero').clientWidth,h=$('#bay-hero').clientHeight;
-  for(const [id,lon,lat,level,dx,dy] of [['gate',-122.478,37.820,3,12,-14],['sf',-122.43,37.758,3,-12,18],['marin',-122.53,37.868,0,-20,-12]]){
+  for(const [id,lon,lat,level,dx,dy] of [['gate',-122.478,37.820,3,12,-14],['sf',-122.43,37.758,3,-12,18],['marin',-122.53,37.868,0,-20,-12],['bart',-122.342,37.796,3,8,16],['alcatraz',-122.423,37.827,0,7,-9],['angel',-122.4326,37.862,2,10,-8],['baybridge',-122.376,37.801,3,8,-15],['presidio',-122.466,37.798,2,-14,15]]){
     const p=world(lon,lat);p.y+=layers[level].position.y+.8;p.applyMatrix4(root.matrixWorld).project(camera);
     const el=$('#landmark-'+id),x=(p.x*.5+.5)*w+dx,y=(-p.y*.5+.5)*h+dy;
-    el.style.transform=`translate(${x}px,${y}px)`;el.style.opacity=(state.focus<0||state.focus===level)&&x>15&&x<w-110&&y>88&&y<h-150?'.82':'0';
+    el.style.transform=`translate(${x}px,${y}px)`;el.style.opacity=(id==='bart'?state.focus===3:state.focus<0||state.focus===level)&&x>15&&x<w-110&&y>88&&y<h-150?'.82':'0';
   }
 }
 function setupUI(){
@@ -256,38 +309,54 @@ function setupUI(){
 const captions=[
   'Earth & seabed / NOAA mapped relief reveals the shape beneath both land and water. Vertical scale is exaggerated.',
   'Natural forces / Light, wind and water move through a shared geography. These flows are illustrative.',
-  'Living systems / Historical mapped street trees meet illustrative forest cover and wildlife movement.',
-  'The built world / Municipal footprints and streets share the terrain. Vehicles and connections illustrate activity.'
+  'Living systems / Historical mapped street trees meet illustrative forest cover, birds and an occasional whale.',
+  'The built world / Headlights, sailboats and BART reveal life above and below the water. Routes and movement are illustrative.'
 ];
 function setFocus(level){state.focus=level;document.querySelectorAll('[data-layer]').forEach(el=>{el.classList.toggle('selected',+el.dataset.layer===level);el.classList.toggle('dimmed',level>=0&&+el.dataset.layer!==level);el.setAttribute('aria-pressed',+el.dataset.layer===level);});$('#caption').textContent=level<0?'A digital twin connects observations, models and feedback—so we can explore what a change might mean.':captions[level];}
 function renderLoop(){
-  let last=performance.now(),lastStats=last;
+  let last=performance.now(),lastStats=last,lastPaint=0;
   function frame(now){
-    requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;
-    if(document.hidden)return;
-    if(state.playing){state.elapsed+=dt;state.time=(state.time+dt*.065)%24;$('#time').value=state.time;}
+    requestAnimationFrame(frame);
+    if(document.hidden||!sceneInView){last=now;return;}
+    if(now-lastPaint<(isBackdrop?1000/30:1000/60)-.5)return;
+    lastPaint=now;const dt=Math.min((now-last)/1000,.05);last=now;
+    if(state.playing){state.elapsed+=dt;state.time=(state.time+dt*.065)%24;if(now-lastStats>100)$('#time').value=state.time;}
     state.spread=mix(state.spread,state.spreadTarget,1-Math.exp(-dt*4));
-    layers.forEach((g,i)=>{g.position.y=i*(.18+state.spread*18.5);const fade=state.focus<0||state.focus===i?1:.09;g.userData.fade=mix(g.userData.fade,fade,1-Math.exp(-dt*4));g.traverse(o=>{if(!o.material)return;const m=o.material;if(m.userData.originalOpacity===undefined)return;const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));const night=m.userData.cityLights?1.15-daylight*.3:1;m.opacity=clamp(m.userData.originalOpacity*g.userData.fade*m.userData.dynamicGain*night,0,1);});});
+    layers.forEach((g,i)=>{g.position.y=i*(.18+state.spread*18.5);g.userData.reveal=Math.min(1,(g.userData.reveal??1)+dt*1.4);const fade=(state.focus<0||state.focus===i?1:.09)*g.userData.reveal;g.userData.fade=mix(g.userData.fade,fade,1-Math.exp(-dt*4));g.traverse(o=>{if(!o.material)return;const m=o.material;if(m.userData.originalOpacity===undefined)return;const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));const night=m.userData.cityLights?1.15-daylight*.3:1;m.opacity=clamp(m.userData.originalOpacity*g.userData.fade*m.userData.dynamicGain*night,0,1);});});
     for(let i=motions.length-1;i>=0;i--){const m=motions[i];if(m.update(dt,state.elapsed)&&m.once)motions.splice(i,1);}
     if(state.orbit&&state.playing&&now/1000-state.draggedAt>12){controls.autoRotate=true;controls.autoRotateSpeed=.12;}else controls.autoRotate=false;
     controls.update(dt);scene.updateMatrixWorld();
-    const hours=Math.floor(state.time),minutes=Math.floor((state.time-hours)*60);$('#clock').textContent=`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;
+    const hours=Math.floor(state.time),minutes=Math.floor((state.time-hours)*60);const timeLabel=`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;if($('#clock').textContent!==timeLabel)$('#clock').textContent=timeLabel;
     const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));scene.children.find(o=>o.isHemisphereLight).intensity=.55+daylight*.8;
     updateAnnotations();renderer.render(scene,camera);
     if(now-lastStats>2000){window.bayLayers.stats={...stats,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,points:renderer.info.render.points,frameMs:Math.round(dt*1000)};$('#scene').dataset.renderStats=JSON.stringify(window.bayLayers.stats);lastStats=now;}
   }requestAnimationFrame(frame);
 }
+async function fetchAsset(name,type='json'){
+  const compressed=typeof DecompressionStream!=='undefined';
+  const r=await fetch(`./assets/${name}${compressed?'.gz':''}`);if(!r.ok)throw new Error(`Could not load ${name} (${r.status}).`);
+  const response=compressed?new Response(r.body.pipeThrough(new DecompressionStream('gzip'))):r;
+  return type==='json'?response.json():response.arrayBuffer();
+}
 async function boot(){
   try{
     initRenderer();setupUI();
-    const loadJSON=async path=>{const r=await fetch(path);if(!r.ok)throw new Error(`Could not load ${path} (${r.status}).`);return r.json();};
-    const h=await fetch('./assets/elevation.f32');if(!h.ok)throw new Error('The elevation grid could not be loaded.');heightGrid=new Float32Array(await h.arrayBuffer());
-    [buildings,trees,streets]=await Promise.all(['buildings','trees','streets'].map(n=>loadJSON(`./assets/${n}.json`)));
-    $('#loading-copy').textContent='Tracing the coast. Finding the connections…';await new Promise(r=>setTimeout(r,40));
-    makeTerrain();makeForces();makeLivingSystems();makeBuiltWorld();makeConnections();
-    state.ready=true;
+    new IntersectionObserver(entries=>{sceneInView=entries[0].isIntersecting;},{threshold:0}).observe($('#bay-hero'));
+    const cityLoad=Promise.all([fetchAsset('buildings.lite.json'),fetchAsset('trees.json'),fetchAsset('streets.json'),fetchAsset('city.mesh.i16','binary'),fetchAsset('city.edges.i16','binary')]);
+    const terrainLoad=Promise.all([fetchAsset('elevation.f32','binary'),fetchAsset('terrain.contours.i16','binary'),fetchAsset('terrain.coast.i16','binary')]);
+    // Observe both immediately so an asset failure never becomes an unhandled rejection.
+    const cityResult=cityLoad.then(value=>({status:'fulfilled',value}),reason=>({status:'rejected',reason}));
+    const [height,contours,coast]=await terrainLoad;heightGrid=new Float32Array(height);packedContours=new Int16Array(contours);packedCoast=new Int16Array(coast);
+    makeTerrain();makeForces();makeConnections();
     window.bayLayers={state,stats,renderer,scene,camera,controls,focus:setFocus,reset:resetView};
+    renderLoop();$('#loading').classList.add('finished');setTimeout(()=>$('#loading')?.remove(),700);
+    $('#scene').dataset.firstLandscapeMs=String(Math.round(performance.now()-startupAt));
+    await new Promise(requestAnimationFrame);
+    const result=await cityResult;if(result.status==='rejected')throw result.reason;
+    const [b,t,s,c,e]=result.value;buildings=b;trees=t;streets=s;packedCity=new Int16Array(c);packedEdges=new Int16Array(e);
+    makeLivingSystems();await new Promise(requestAnimationFrame);makeBuiltWorld();
+    layers[2].userData.reveal=0;layers[3].userData.reveal=0;state.ready=true;
+    $('#scene').dataset.fullSceneMs=String(Math.round(performance.now()-startupAt));
     $('#mapped-data-copy').textContent=`${buildings.length.toLocaleString()} simplified San Francisco building footprints, ${streets.length.toLocaleString()} sampled street segments, and ${trees.length.toLocaleString()} mapped points from a historical street-tree inventory. These are partial source snapshots, not a present-day census. Regional forest placement, crown sizes and landmark meshes are illustrative.`;
-    renderLoop();$('#loading').classList.add('finished');setTimeout(()=>$('#loading').remove(),1300);
-  }catch(error){console.error(error);$('#loading').style.display='none';$('#error-copy').textContent=error.message;$('#error-panel').hidden=false;}
+  }catch(error){console.error(error);const loader=$('#loading');if(loader)loader.style.display='none';$('#error-copy').textContent=error.message;$('#error-panel').hidden=false;}
 }boot();

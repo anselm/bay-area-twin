@@ -49,6 +49,13 @@
       "url": "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/Street_Trees/FeatureServer/0",
       "kind": "observed_derived",
       "notes": "8000-point historical sample with mapped locations. Not all trees, not a current inventory, crown sizes stylized."
+    },
+    {
+      "id": "bart",
+      "title": "BART Transbay Tube \u2014 contextual reference for illustrative crossing",
+      "url": "https://www.bart.gov/news/articles/2024/news20240916",
+      "kind": "illustrative_with_geographic_reference",
+      "notes": "Approximate route anchored near Embarcadero and West Oakland. Two bores and trains are schematic; vertical placement emphasizes below-water infrastructure and is not a surveyed engineering depth. No real-time train location or timetable. Three sailboats, animated cars and an occasional whale are illustrative."
     }
   ],
   "street_segments": 12000,
