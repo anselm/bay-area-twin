@@ -1,5 +1,9 @@
 # Bay Layers
 
+[Live scene](https://anselm.github.io/bay-area-twin/) · [Backdrop widget](https://anselm.github.io/bay-area-twin/?backdrop=1) · [Embed examples](https://anselm.github.io/bay-area-twin/embed.html)
+
+![Bay Layers animated backdrop](media/bay-layers-backdrop.gif)
+
 A wide, luminous, interactive portrait of San Francisco Bay that explains the idea of a digital twin through four shared geographic layers: earth and seabed, natural forces, living systems, and the built world.
 
 ## Run
@@ -79,24 +83,22 @@ Commit the prepared `dist/assets/` files with the site. Raw downloads are cached
 
 `python3 scripts/fetch-regional.py` downloads a bounded OpenStreetMap roads/buildings snapshot. Run `npm run prepare:geometry` afterward. Regional footprints outside SF are spatially sampled. Heights use OSM height/levels when present, otherwise an illustrative 6.2m default. Regional roads supplement the SF sample; major routes receive greater brightness. © OpenStreetMap contributors, ODbL 1.0. The frame includes only western Oakland/Berkeley, not those entire cities. Everything remains static at runtime.
 
-## Push to your GitHub repository
-
-The canonical project folder is `/Volumes/summer/projects/2026/bay-layers`. The prepared site is `dist/`; keep that directory and its assets tracked. No installation, data download or build is needed to run the saved scene. Raw data caches and local environment files are ignored. Three.js includes its upstream MIT license. Dataset rights and attribution are separate; see `dist/assets/sources.json`, especially OpenStreetMap's ODbL requirements. This repository does not yet assign a license to the project's own code.
-
-Create an **empty** repository at `https://github.com/anselm/bay-area-twin` (without generated README or license), then:
+## Develop and push updates
 
 ```sh
-cd /Volumes/summer/projects/2026/bay-layers
-git status
+git clone https://github.com/anselm/bay-area-twin.git
+cd bay-area-twin
+npm run dev
+# Edit, then check and publish source updates:
+npm run check
 git add .
-git commit -m "Prepare Bay Layers for GitHub" # Only if git status shows changes.
-git remote add github git@github.com:anselm/bay-area-twin.git
-git push -u github HEAD:main
+git commit -m "Describe the change"
+git push origin main
 ```
 
-This checkout already has a source publishing remote. Adding a separate `github` remote preserves it. If `github` already exists, inspect it with `git remote -v` before changing it. Use `https://github.com/anselm/bay-area-twin.git` instead of the SSH URL if you prefer HTTPS authentication. Do not force-push over an existing repository. If your local branch is not `main`, the explicit `HEAD:main` still publishes it to GitHub's `main`; future pushes can use `git push github HEAD:main`.
+Prepared files in `dist/` are tracked: a fresh clone needs no dependency installation, data download or build. Raw downloads, local environment files and caches are ignored. The current maintainer checkout may use a `github` remote instead of `origin`; in that case use `git push github main`. GitHub Pages redeploys automatically after pushes to `main`.
 
-The `.openai/hosting.json` file records the existing private Sites deployment. It contains a site identifier, not a credential; GitHub Pages does not use it. Credential tokens are never stored in the project. Review files before publishing a public repository. Git history may contain earlier source and source manifests, so review history as well as the current tree.
+The `.openai/hosting.json` file records an additional existing Sites deployment; it contains an identifier, not credentials, and GitHub Pages does not use it. Three.js retains its upstream MIT license. Dataset rights are separate: preserve source provenance and OpenStreetMap's ODbL attribution. This repository does not yet assign a license to the project's own code.
 
 ## Enable GitHub Pages
 
@@ -142,3 +144,22 @@ npm run prepare:geometry
 ```
 
 The source footprint acquisition is a bounded sample (up to 100,000 features per crop), not a complete municipal census. Rendering selects the tallest available footprint in each coarse geographic bin outside SF, retaining 6,592 regional footprints in this snapshot. Roads retain the broader mapped network. The first two commands require network access only during preparation; cached responses are reused. The original Overpass path is retained as a fallback, but overloaded public servers may fail. Rerunning `data:prepare` resets the SF base and source manifest; rerun the regional preparation afterward and preserve the additional source records.
+
+## Notes for agents embedding this widget
+
+- Prefer an iframe using `https://anselm.github.io/bay-area-twin/?backdrop=1`. Do not fetch JavaScript from raw GitHub URLs or inject this scene's styles into the host page.
+- Use `&transparent=1` if the host background should show through. Plain backdrop mode has its own dark background. Give the iframe a real height; width alone will not size it correctly. Wide headers around 16:9 or 2:1 work well.
+- For decorative backgrounds, set `aria-hidden="true"`, `tabindex="-1"`, and `pointer-events:none`; put article content above the iframe. Use the accessible interactive view separately if visitors need to explore or read provenance.
+- No cross-origin fetch permission is needed to display an iframe. A host content security policy must allow `https://anselm.github.io` in `frame-src`. Same-origin policy prevents directly manipulating the widget DOM from another site. There is currently no postMessage control API; do not assume one exists.
+- The complete deployable unit is `dist/`. If self-hosting, copy all of it, keeping paths relative and directory structure intact. Serve via HTTP(S), not `file://`. Three.js is vendored; geographic files are prepared snapshots with no runtime third-party API calls.
+- Keep mapped data and illustrated motion clearly described. This is an explanatory scene, not an operational predictive twin. Preserve data-source links and OpenStreetMap attribution in the embedding page or an accessible credits link when backdrop mode hides the interface.
+- Respect reduced motion and offer a static image fallback when appropriate. `media/bay-layers-backdrop.gif` is promotional media, not a reduced-motion fallback, because it animates too.
+- For modifications, edit source files and run `npm run check`. Refresh geographic data only deliberately; commit prepared assets rather than raw download caches. GitHub Pages deploys `dist/` without a data fetch or build step.
+- To update an embedding wiki, change only its iframe URL and wrapper CSS. Avoid copying the entire rendering implementation into the wiki unless self-hosting is an explicit requirement.
+
+## Promotional media
+
+- `media/bay-layers-backdrop.gif`: 10-second animated preview, backdrop mode, 800 × 450. Captured from the rendered browser scene with controls hidden.
+- `media/bay-layers-backdrop.mp4`: the same animation at 1280 × 720, smaller and smoother for platforms that accept video.
+
+The GIF is embedded at the top of this README. The live widget remains interactive and continuously rendered; the GIF is a promotional recording. Mapped geometry is historical/sampled and motion is illustrative. When sharing independently, retain a source credit such as “Bay Layers by Anselm Hook · NOAA / Marin vegetation map partners / municipal data / © OpenStreetMap contributors.”
