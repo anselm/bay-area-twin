@@ -432,7 +432,7 @@ function renderLoop(){
     requestAnimationFrame(frame);
     if(document.hidden||!sceneInView){last=now;return;}
     if(now-lastPaint<(isBackdrop?1000/30:1000/60)-.5)return;
-    lastPaint=now;const dt=Math.min((now-last)/1000,.05);last=now;
+    lastPaint=now;const dt=clamp((now-last)/1000,0,.05);last=now;
     if(state.playing){state.elapsed+=dt;state.time=(state.time+dt*.065)%24;if(now-lastStats>100)$('#time').value=state.time;}
     state.spread=mix(state.spread,state.spreadTarget,1-Math.exp(-dt*4));
     layers.forEach((g,i)=>{g.position.y=i*(.18+state.spread*18.5);g.userData.reveal=Math.min(1,(g.userData.reveal??1)+dt*1.4);const fade=(state.focus<0||state.focus===i?1:.09)*g.userData.reveal;g.userData.fade=mix(g.userData.fade,fade,1-Math.exp(-dt*4));g.traverse(o=>{if(!o.material)return;const m=o.material;if(m.userData.originalOpacity===undefined)return;const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));const night=m.userData.cityLights?1.15-daylight*.3:1;m.opacity=clamp(m.userData.originalOpacity*g.userData.fade*m.userData.dynamicGain*night,0,1);});});
