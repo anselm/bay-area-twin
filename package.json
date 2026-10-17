@@ -1,0 +1,1 @@
+{"name":"bay-layers","version":"0.1.0","private":true,"type":"module","description":"A luminous, layered portrait of San Francisco Bay and the idea of a digital twin.","scripts":{"dev":"node scripts/serve.mjs","check":"node --check dist/main.js && node --check scripts/serve.mjs"}}

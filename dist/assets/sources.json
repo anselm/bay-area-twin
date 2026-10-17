@@ -1,0 +1,56 @@
+{
+  "title": "Bay Layers source snapshot",
+  "bounds": [
+    -122.65,
+    37.67,
+    -122.27,
+    37.95
+  ],
+  "grid": 513,
+  "height_min_m": -113.03356170654297,
+  "height_max_m": 783.7405395507812,
+  "raw_building_count": 20000,
+  "rendered_building_count": 9983,
+  "retrieved": "2026-10-17",
+  "sources": [
+    {
+      "id": "noaa",
+      "title": "NOAA NCEI topographic/bathymetric DEM mosaic",
+      "url": "https://gis.ngdc.noaa.gov/arcgis/rest/services/DEM_mosaics/DEM_all/ImageServer",
+      "kind": "observed_derived",
+      "notes": "F32 grid resampled to 513\u00d7513. Mosaic combines historical surveys and vertical datums; not current marine navigation or a tidal model. Land and seabed exaggeration are visual."
+    },
+    {
+      "id": "sf-buildings",
+      "title": "City and County of San Francisco building footprints, via public ArcGIS mirror",
+      "url": "https://data.sf.gov/Geographic-Locations-and-Boundaries/Building-Footprints/ynuv-fyni",
+      "mirror": "https://services5.arcgis.com/wXYNaciObHUosEnt/ArcGIS/rest/services/Rooftop_Solar_Power_Potential_San_Francisco_WFL1/FeatureServer/9",
+      "kind": "observed_derived",
+      "license": "Open Data Commons PDDL (official source)",
+      "notes": "20,000-source-feature bounded sample. Simplified footprints and median height; historical city records, not current full Bay Area coverage. Source identifiers retained."
+    },
+    {
+      "id": "motion",
+      "title": "Illustrative processes and animated agents",
+      "kind": "illustrative",
+      "notes": "Wind, currents, solar cycle, wildlife, vessels, cars, flight paths, utility lines and vegetation sketches are designed illustrations, not observed live feeds or a calibrated simulation. Bridge and landmark meshes are stylized, geographically positioned illustrations."
+    },
+    {
+      "id": "sf-streets",
+      "title": "SF Public Works street centerlines (2022 mirror snapshot)",
+      "url": "https://data.sf.gov/d/3psu-pn9h",
+      "mirror": "https://services3.arcgis.com/O2D69KF7KJAcdYlc/arcgis/rest/services/Transit_Stops/FeatureServer/9",
+      "kind": "observed_derived",
+      "notes": "Partial sampled centerline network; public mirror, historical snapshot. Not current road traffic."
+    },
+    {
+      "id": "sf-trees",
+      "title": "SF municipal street-tree inventory (Esri sample mirror, last edited 2018)",
+      "url": "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/Street_Trees/FeatureServer/0",
+      "kind": "observed_derived",
+      "notes": "8000-point historical sample with mapped locations. Not all trees, not a current inventory, crown sizes stylized."
+    }
+  ],
+  "street_segments": 12000,
+  "mapped_street_trees": 8000
+}

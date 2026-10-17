@@ -1,0 +1,293 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $=s=>document.querySelector(s);
+const isEmbed=new URLSearchParams(location.search).has('embed');
+if(isEmbed)document.body.classList.add('embed');
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false};
+const COLORS=[0x60b4b4,0x7dd7f2,0xa0ddb1,0xf1cc91];
+const BOUNDS=[-122.65,37.67,-122.27,37.95];
+const WIDTH=100,DEPTH=93.25;
+const layers=[];const motions=[];const visualMaterials=[];
+let scene,camera,renderer,controls,heightGrid,buildings,trees,streets,root,coast,stats={};
+const tmp=new THREE.Vector3();
+const rng=(seed=>()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;})(91827);
+const mix=THREE.MathUtils.lerp;
+const clamp=THREE.MathUtils.clamp;
+function xy(lon,lat){return [(lon-BOUNDS[0])/(BOUNDS[2]-BOUNDS[0])*WIDTH-WIDTH/2,(BOUNDS[3]-lat)/(BOUNDS[3]-BOUNDS[1])*DEPTH-DEPTH/2];}
+function elevation(x,z){
+  const u=clamp((x/WIDTH+.5)*512,0,511.999),v=clamp((z/DEPTH+.5)*512,0,511.999),ix=Math.floor(u),iz=Math.floor(v),fx=u-ix,fz=v-iz;
+  return mix(mix(heightGrid[iz*513+ix],heightGrid[iz*513+ix+1],fx),mix(heightGrid[(iz+1)*513+ix],heightGrid[(iz+1)*513+ix+1],fx),fz);
+}
+function relief(h){return h>=0?h*.0105:h*.023;}
+function ground(x,z){return Math.max(0,relief(elevation(x,z)));}
+function world(lon,lat,extra=0){const [x,z]=xy(lon,lat);return new THREE.Vector3(x,ground(x,z)+extra,z);}
+function material(kind,opts){const m=new THREE[kind](opts);m.userData.originalOpacity=m.opacity;m.userData.dynamicGain=1;visualMaterials.push(m);return m;}
+function lines(positions,color,opacity=.3,group=undefined){
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  const m=material('LineBasicMaterial',{color,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending});
+  const o=new THREE.LineSegments(g,m);if(group)group.add(o);return o;
+}
+function trail(points,color,opacity,group){const ps=[];for(let i=1;i<points.length;i++)ps.push(...points[i-1],...points[i]);return lines(ps,color,opacity,group);}
+function glowTexture(){const c=document.createElement('canvas');c.width=c.height=64;const ctx=c.getContext('2d'),g=ctx.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.12,'rgba(255,255,255,.95)');g.addColorStop(.35,'rgba(255,255,255,.30)');g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);}
+const GLOW=glowTexture();
+function points(positions,color,size,opacity,group){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));const m=material('PointsMaterial',{color,size,map:GLOW,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});const p=new THREE.Points(g,m);group.add(p);return p;}
+function initRenderer(){
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  renderer.setClearColor(0x071019,0);
+  $('#scene').appendChild(renderer.domElement);
+  scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x071019,.0018);
+  camera=new THREE.PerspectiveCamera(32,1,.2,1500);
+  scene.add(new THREE.HemisphereLight(0xb3dfdf,0x112d3d,1.25));
+  const key=new THREE.DirectionalLight(0xc0dfd4,2.5);key.position.set(-45,80,20);scene.add(key);
+  const fill=new THREE.DirectionalLight(0x6188a0,1);fill.position.set(50,25,-40);scene.add(fill);
+  root=new THREE.Group();scene.add(root);
+  controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.045;controls.enablePan=true;controls.minDistance=85;controls.maxDistance=360;controls.minPolarAngle=.2;controls.maxPolarAngle=Math.PI*.48;controls.rotateSpeed=.45;controls.zoomSpeed=.7;
+  controls.addEventListener('start',()=>{state.draggedAt=performance.now()/1000;});
+  controls.addEventListener('end',()=>{state.draggedAt=performance.now()/1000;});
+  resetView(false);resize();new ResizeObserver(resize).observe($('#bay-hero'));
+  renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();$('#error-copy').textContent='The graphics context was interrupted. Reload to rebuild the view.';$('#error-panel').hidden=false;});
+}
+function resetView(animate=true){
+  const mobile=$('#bay-hero').clientWidth<700;
+  const position=mobile?new THREE.Vector3(176,157,222):new THREE.Vector3(144,121,177);
+  // The model lives slightly to the right, leaving the introduction quiet.
+  if(animate){const from=camera.position.clone(),fromTarget=controls.target.clone();let t=0;motions.push({once:true,update:dt=>{t+=dt*.8;const k=1-Math.pow(1-clamp(t,0,1),3);camera.position.lerpVectors(from,position,k);controls.target.lerpVectors(fromTarget,new THREE.Vector3(mobile?0:-7,mobile?20:16,0),k);return t>=1;}});}else{camera.position.copy(position);controls.target.set(mobile?0:-7,mobile?20:16,0);controls.update();}
+}
+function resize(){if(!renderer)return;const {width,height}=$('#bay-hero').getBoundingClientRect();renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();}
+
+function makeTerrain(){
+  for(let level=0;level<4;level++){
+    const g=new THREE.Group();g.userData.level=level;g.userData.fade=1;layers.push(g);root.add(g);
+    const border=[-50,0,-DEPTH/2,50,0,-DEPTH/2,50,0,-DEPTH/2,50,0,DEPTH/2,50,0,DEPTH/2,-50,0,DEPTH/2,-50,0,DEPTH/2,-50,0,-DEPTH/2];lines(border,COLORS[level],level===0?.32:.15,g);
+    const corner=[];for(const x of [-50,50])for(const z of [-DEPTH/2,DEPTH/2]){corner.push(x,-.3,z,x+Math.sign(-x)*3,-.3,z,x,-.3,z,x,-.3,z+Math.sign(-z)*3);}
+    lines(corner,COLORS[level],.65,g);
+    const fine=[];for(let i=0;i<=40;i++){const x=-50+i*2.5;fine.push(x,-.2,-DEPTH/2,x,-.2,DEPTH/2);}for(let i=0;i<=36;i++){const z=-DEPTH/2+i*DEPTH/36;fine.push(-50,-.2,z,50,-.2,z);}lines(fine,COLORS[level],level===0?.06:.032,g);
+    // Each layer shares the same georeferenced relief, allowing a true reassembly.
+    const n=192,geom=new THREE.PlaneGeometry(WIDTH,DEPTH,n,n);geom.rotateX(-Math.PI/2);
+    const p=geom.attributes.position,colors=new Float32Array(p.count*3),c=new THREE.Color();
+    for(let i=0;i<p.count;i++){
+      const x=p.getX(i),z=p.getZ(i),h=elevation(x,z);p.setY(i,relief(h));
+      if(h<0)c.set(0x0c323e).lerp(new THREE.Color(0x174c59),clamp((h+110)/110,0,1));
+      else c.set(0x183c3d).lerp(new THREE.Color(0x53746b),clamp(h/750,0,1));
+      colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
+    }
+    geom.setAttribute('color',new THREE.BufferAttribute(colors,3));geom.computeVertexNormals();
+    const m=material('MeshStandardMaterial',{vertexColors:true,roughness:.94,metalness:.12,transparent:true,opacity:level===0?.68:level===3?.12:.08,side:THREE.DoubleSide,depthWrite:level===0});
+    const mesh=new THREE.Mesh(geom,m);g.add(mesh);
+    const wire=[];const step=4;
+    for(let z=0;z<=n;z+=step)for(let x=0;x<n;x+=2){const a=z*(n+1)+x,b=a+2;wire.push(p.getX(a),p.getY(a)+.035,p.getZ(a),p.getX(b),p.getY(b)+.035,p.getZ(b));}
+    for(let x=0;x<=n;x+=step)for(let z=0;z<n;z+=2){const a=z*(n+1)+x,b=a+(n+1)*2;wire.push(p.getX(a),p.getY(a)+.035,p.getZ(a),p.getX(b),p.getY(b)+.035,p.getZ(b));}
+    lines(wire,COLORS[level],level===0?.23:.075,g);
+  }
+  // Survey-block sides reveal that the bottom layer includes the seabed.
+  const walls=[],wallIndices=[];
+  const rim=[];const n=192;
+  for(let i=0;i<=n;i++)rim.push([-50+i*100/n,-DEPTH/2]);
+  for(let i=1;i<=n;i++)rim.push([50,-DEPTH/2+i*DEPTH/n]);
+  for(let i=1;i<=n;i++)rim.push([50-i*100/n,DEPTH/2]);
+  for(let i=1;i<=n;i++)rim.push([-50,DEPTH/2-i*DEPTH/n]);
+  for(let i=0;i<rim.length;i++){const [x,z]=rim[i];walls.push(x,relief(elevation(x,z)),z,x,-5,z);if(i){const k=(i-1)*2;wallIndices.push(k,k+1,k+2,k+1,k+3,k+2);}}
+  const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(walls,3));wg.setIndex(wallIndices);wg.computeVertexNormals();layers[0].add(new THREE.Mesh(wg,material('MeshStandardMaterial',{color:0x102e38,transparent:true,opacity:.86,side:THREE.DoubleSide,roughness:1})));
+  const strata=[];for(const y of [-4,-3,-2])for(let i=1;i<rim.length;i++)strata.push(rim[i-1][0],y,rim[i-1][1],rim[i][0],y,rim[i][1]);lines(strata,0x3e8790,.14,layers[0]);
+  makeContours();
+}
+function makeContours(){
+  const n=192,all=[],coastline=[];
+  for(const lev of [-100,-75,-50,-25,-10,0,50,100,200,400,600]){
+    const out=lev===0?coastline:all;
+    for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+      const x=-50+i*WIDTH/n,z=-DEPTH/2+j*DEPTH/n;
+      const corners=[[x,z],[x+WIDTH/n,z],[x+WIDTH/n,z+DEPTH/n],[x,z+DEPTH/n]];
+      const h=corners.map(p=>elevation(...p)),cross=[];
+      for(let edge=0;edge<4;edge++){const a=edge,b=(edge+1)%4;if((h[a]<=lev&&h[b]>lev)||(h[b]<=lev&&h[a]>lev)){const k=(lev-h[a])/(h[b]-h[a]);cross.push([mix(corners[a][0],corners[b][0],k),relief(lev)+.08,mix(corners[a][1],corners[b][1],k)]);}}
+      if(cross.length>=2)out.push(...cross[0],...cross[1]);if(cross.length===4)out.push(...cross[2],...cross[3]);
+    }
+  }
+  lines(all,0x8ac3bc,.30,layers[0]);coast=coastline;
+  for(let level=0;level<4;level++)lines(coastline,COLORS[level],level===0?.65:.38,layers[level]);
+}
+
+function makeForces(){
+  const g=layers[1],count=610,ps=new Float32Array(count*6),col=new Float32Array(count*6),s=[];
+  for(let i=0;i<count;i++){s.push({x:rng()*100-50,z:rng()*DEPTH-DEPTH/2,y:.8+rng()*6,t:rng(),speed:.012+rng()*.016,len:.5+rng()*1.3});const color=new THREE.Color(i%4===0?0xd6eddd:0x76bed4);for(let k=0;k<2;k++){const shade=k===0?.18:1;col.set([color.r*shade,color.g*shade,color.b*shade],i*6+k*3);}}
+  const geom=new THREE.BufferGeometry();geom.setAttribute('position',new THREE.BufferAttribute(ps,3));geom.setAttribute('color',new THREE.BufferAttribute(col,3));
+  g.add(new THREE.LineSegments(geom,material('LineBasicMaterial',{vertexColors:true,transparent:true,opacity:.6,depthWrite:false,blending:THREE.AdditiveBlending})));
+  function flow(t){for(let i=0;i<count;i++){const q=s[i],u=((q.t+t*q.speed)%1),x=u*108-54,z=q.z+Math.sin(x*.07+q.z*.1)*1.4,y=Math.max(.3,ground(clamp(x,-50,50),z))+q.y;const fade=Math.sin(u*Math.PI);ps.set([x,y,z,x+q.len*fade,y+.03,z+.05],i*6);}geom.attributes.position.needsUpdate=true;}
+  motions.push({update:(_,t)=>flow(t)});flow(0);
+  const currentSeeds=[];for(let i=0;i<145;i++){const x=rng()*100-50,z=rng()*DEPTH-DEPTH/2;if(elevation(x,z)<-1)currentSeeds.push({x,z,p:rng()});}
+  const cps=new Float32Array(currentSeeds.length*6),cg=new THREE.BufferGeometry();cg.setAttribute('position',new THREE.BufferAttribute(cps,3));g.add(new THREE.LineSegments(cg,material('LineBasicMaterial',{color:0x6de5db,transparent:true,opacity:.38,depthWrite:false,blending:THREE.AdditiveBlending})));
+  motions.push({update:(_,t)=>{currentSeeds.forEach((s,i)=>{const phase=t*.15+s.p*6,x=s.x+Math.sin(phase)*1.2,z=s.z+Math.cos(phase*.7)*1.2;if(elevation(x,z)>1){cps.fill(0,i*6,i*6+6);return;}cps.set([x,.15,z,x+.2*Math.cos(phase),.17,z+.7*Math.sin(phase)],i*6);});cg.attributes.position.needsUpdate=true;}});
+  // Solar rays travel through the slice. Their angle follows the illustrative day.
+  const rays=[];for(let i=0;i<12;i++)rays.push(-43+i*7.5,10,-29,-43+i*7.5,1,-21);
+  const sunlight=lines(rays,0xf2d8a1,.1,g);sunlight.userData.sunlight=true;
+  motions.push({update:()=>{const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));sunlight.material.userData.dynamicGain=daylight;sunlight.rotation.y=Math.sin(state.time/24*Math.PI*2)*.15;}});
+}
+
+function makeLivingSystems(){
+  const g=layers[2],positions=[],stems=[],colors=[];
+  const green=new THREE.Color();
+  // Mapped points: historical municipal street trees, kept separate from forest sketches.
+  for(const t of trees){const [x,z]=xy(t[0],t[1]);if(Math.abs(x)>50||Math.abs(z)>DEPTH/2)continue;const y=ground(x,z),h=.16+Math.min(t[2]||10,50)*.006;positions.push(x,y+h,z);green.set(rng()<.12?0xbfd8a4:0x70b9a3);colors.push(green.r,green.g,green.b);if(rng()<.25)stems.push(x,y,z,x,y+h,z);}
+  const actualCount=positions.length/3;
+  const forest=[];
+  // Artistic forest distribution follows hills and known park regions, not a canopy product.
+  for(let i=0;i<30000;i++){
+    const x=rng()*100-50,z=rng()*DEPTH-DEPTH/2,h=elevation(x,z);
+    const [gx,gz]=xy(-122.48,37.77),[px,pz]=xy(-122.465,37.798);
+    const park=(Math.abs(x-gx)<8&&Math.abs(z-gz)<1.6)||(Math.abs(x-px)<3.6&&Math.abs(z-pz)<2.8);
+    const north=(z<xy(-122.46,37.835)[1]&&x<xy(-122.42,37.84)[0]);
+    if(h>15&&((north&&rng()<.7)||(park&&rng()<.85)||(h>140&&rng()<.12))){forest.push(x,relief(h)+.2+rng()*.45,z);}
+  }
+  const tp=points(positions,0x9ad8b1,.42,.8,g);tp.geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));tp.material.vertexColors=true;
+  const fp=points(forest,0x6ab6a2,.35,.46,g);lines(stems,0x90c7a4,.18,g);
+  const slowGlow=fp.material;motions.push({update:(_,t)=>{slowGlow.userData.dynamicGain=.85+Math.sin(t*.3)*.15;}});
+  stats.treePoints=actualCount;stats.illustrativeCanopyPoints=forest.length/3;
+  // Birds sketch the shape of movement without asserting measured animal tracks.
+  const birds=30,bp=new Float32Array(birds*12),bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.BufferAttribute(bp,3));g.add(new THREE.LineSegments(bg,material('LineBasicMaterial',{color:0xd7ebbd,transparent:true,opacity:.65,depthWrite:false})));
+  const seeds=Array.from({length:birds},()=>({r:2+rng()*8,x:-22+rng()*35,z:-29+rng()*40,y:1+rng()*3,p:rng()*Math.PI*2,s:.06+rng()*.08}));
+  motions.push({update:(_,t)=>{seeds.forEach((s,i)=>{const a=s.p+t*s.s,x=s.x+Math.sin(a)*s.r,z=s.z+Math.cos(a)*s.r*.6,y=ground(x,z)+s.y,wing=Math.sin(t*5+s.p)*.12;bp.set([x-.22,y+wing,z,x,y,z+.06,x,y,z+.06,x+.22,y+wing,z],i*12);});bg.attributes.position.needsUpdate=true;}});
+  const fish=[];for(let i=0;i<130;i++){const x=-8+rng()*35,z=-19+rng()*57;if(elevation(x,z)<-2)fish.push(x,.2,z);}
+  const fishPoints=points(fish,0xaadacc,.23,.5,g);motions.push({update:(_,t)=>{fishPoints.rotation.y=Math.sin(t*.06)*.016;}});
+}
+
+function makeBuiltWorld(){
+  const g=layers[3],vertices=[],edges=[],roofColor=[],gold=new THREE.Color(0xb79464),warm=new THREE.Color(0xe2cba4);
+  for(const b of buildings){
+    const ring=b.p.map(p=>xy(p[0],p[1]));if(ring.length<3)continue;
+    const [cx,cz]=xy(b.c[0],b.c[1]);const y=ground(cx,cz)+.05,h=Math.max(.055,b.h*.0105);
+    const contour=ring.map(([x,z])=>new THREE.Vector2(x,z));const roof=THREE.ShapeUtils.triangulateShape(contour,[]);
+    for(const tri of roof)for(const k of tri){vertices.push(ring[k][0],y+h,ring[k][1]);roofColor.push(warm.r,warm.g,warm.b);}
+    for(let i=0;i<ring.length;i++){
+      const a=ring[i],b=ring[(i+1)%ring.length];vertices.push(a[0],y,a[1],a[0],y+h,a[1],b[0],y+h,b[1],a[0],y,a[1],b[0],y+h,b[1],b[0],y,b[1]);
+      for(let k=0;k<6;k++)roofColor.push(gold.r,gold.g,gold.b);
+      edges.push(a[0],y+h+.012,a[1],b[0],y+h+.012,b[1]);
+      if(b.h>35||i%2===0)edges.push(a[0],y,a[1],a[0],y+h,a[1]);
+    }
+  }
+  const geom=new THREE.BufferGeometry();geom.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geom.setAttribute('color',new THREE.Float32BufferAttribute(roofColor,3));geom.computeVertexNormals();
+  g.add(new THREE.Mesh(geom,material('MeshBasicMaterial',{vertexColors:true,transparent:true,opacity:.07,side:THREE.DoubleSide,depthWrite:false})));
+  const buildingWire=lines(edges,0xe7b471,.42,g);buildingWire.material.blending=THREE.NormalBlending;buildingWire.material.userData.cityLights=true;
+  stats.buildings=buildings.length;
+  const roadPositions=[],routes=[];
+  for(const path of streets){const pts=path.map(c=>world(c[0],c[1],.07));for(let i=1;i<pts.length;i++){if(pts[i].distanceTo(pts[i-1])>8)continue;roadPositions.push(...pts[i-1].toArray(),...pts[i].toArray());if(pts[i].distanceTo(pts[i-1])>.12)routes.push([pts[i-1],pts[i]]);}}
+  const road=lines(roadPositions,0xe2bb88,.17,g);road.material.userData.cityLights=true;stats.streetSegments=streets.length;
+  const cpos=new Float32Array(420*3),car=points(cpos,0xffe2ae,.27,.85,g),seeds=Array.from({length:420},()=>({route:routes[Math.floor(rng()*routes.length)],p:rng(),s:.07+rng()*.14}));
+  motions.push({update:(_,t)=>{seeds.forEach((s,i)=>{if(!s.route)return;tmp.lerpVectors(s.route[0],s.route[1],(s.p+t*s.s)%1);tmp.y+=.04;cpos.set(tmp.toArray(),i*3);});car.geometry.attributes.position.needsUpdate=true;}});
+  makeBridge([-122.47445,37.80855],[-122.4822,37.8329],0xf1a979,true,g);
+  makeBridge([-122.3897,37.789],[-122.365,37.813],0xe6cda3,false,g);
+  makeBridge([-122.365,37.813],[-122.300,37.8245],0xe6cda3,false,g);
+  // Simplified geographic landmark silhouettes (not survey-quality building models).
+  landmarkTower(-122.3965,37.7898,3.2,.30,.41,'salesforce',g);
+  landmarkTower(-122.4034,37.7952,2.7,.32,.32,'pyramid',g);
+  makeFlight(g);
+  makeVessels(g);
+  // Utility relationships are schematic: moving signals, not an underground utility map.
+  const utility=[[-122.511,37.776],[-122.471,37.77],[-122.447,37.775],[-122.418,37.779],[-122.398,37.791]];
+  const up=utility.map(p=>world(...p,.1));trail(up.map(p=>[p.x,p.y-.3,p.z]),0x77b5c1,.33,g);
+  const packet=points([0,0,0],0xa6f3e7,.65,.85,g);
+  motions.push({update:(_,t)=>{if(!Number.isFinite(t))return;const f=((t*.08)%1+1)%1,k=f*(up.length-1),i=Math.min(up.length-2,Math.floor(k));tmp.lerpVectors(up[i],up[i+1],k-i);packet.position.copy(tmp);packet.position.y-=.3;}});
+}
+function landmarkTower(lon,lat,height,w,d,type,g){
+  const p=world(lon,lat);let geom;if(type==='pyramid'){geom=new THREE.ConeGeometry(w,height,4);geom.rotateY(Math.PI/4);}else geom=new THREE.CylinderGeometry(w*.8,w,height,8);
+  geom.translate(p.x,p.y+height*.5,p.z);const edges=new THREE.EdgesGeometry(geom);const obj=new THREE.LineSegments(edges,material('LineBasicMaterial',{color:0xf6dbac,transparent:true,opacity:.9,depthWrite:false}));g.add(obj);
+}
+function makeBridge(start,end,color,gate,g){
+  const a=world(...start),b=world(...end);a.y=b.y=.65;const v=new THREE.Vector3().subVectors(b,a),side=new THREE.Vector3(v.z,0,-v.x).normalize().multiplyScalar(gate?.15:.11),ps=[],decks=[];
+  for(const s of [-1,1]){const aa=a.clone().addScaledVector(side,s),bb=b.clone().addScaledVector(side,s);ps.push(...aa.toArray(),...bb.toArray());}
+  const height=gate?1.8:1.1;
+  for(const f of [.25,.75]){const p=a.clone().lerp(b,f);for(const s of [-1,1]){const q=p.clone().addScaledVector(side,s);ps.push(q.x,.35,q.z,q.x,height+.65,q.z);}for(const y of [height*.35+.65,height*.75+.65])ps.push(p.x-side.x,y,p.z-side.z,p.x+side.x,y,p.z+side.z);}
+  for(const s of [-1,1]){
+    let prev;
+    for(let i=0;i<=70;i++){const t=i/70,p=a.clone().lerp(b,t).addScaledVector(side,s);let y;if(t<.25)y=mix(.66,height+.65,t/.25);else if(t>.75)y=mix(height+.65,.66,(t-.75)/.25);else y=.85+(height-.2)*Math.pow((t-.5)/.25,2);p.y=y;if(prev)ps.push(...prev.toArray(),...p.toArray());if(i%3===0)ps.push(p.x,.65,p.z,p.x,y,p.z);prev=p;}
+  }
+  lines(ps,color,.9,g);
+  const dots=points(new Float32Array(24*3),0xffe5b1,.28,.85,g);
+  motions.push({update:(_,t)=>{const p=dots.geometry.attributes.position;for(let i=0;i<24;i++){tmp.lerpVectors(a,b,(i/24+t*.022)%1);p.setXYZ(i,tmp.x,.69,tmp.z);}p.needsUpdate=true;}});
+}
+function makeFlight(g){
+  const paths=[[[18,9,48],[32,13,10],[9,16,-37]],[[-39,12,28],[-12,16,9],[31,18,-40]]];
+  for(const coords of paths){const curve=new THREE.CatmullRomCurve3(coords.map(c=>new THREE.Vector3(...c)));const pts=curve.getPoints(100);trail(pts.map(p=>p.toArray()),0x9fc2c2,.07,g);
+    const planeG=new THREE.BufferGeometry();const planeArray=new Float32Array(12);planeG.setAttribute('position',new THREE.BufferAttribute(planeArray,3));g.add(new THREE.LineSegments(planeG,material('LineBasicMaterial',{color:0xe8dfc7,transparent:true,opacity:.9,depthWrite:false})));
+    const lead=points([0,0,0],0xcee9df,.44,.7,g);const seed=rng();
+    motions.push({update:(_,t)=>{const u=(seed+t*.012)%1,p=curve.getPoint(u),v=curve.getTangent(u),s=new THREE.Vector3(v.z,0,-v.x).multiplyScalar(.3);planeArray.set([p.x-s.x,p.y,p.z-s.z,p.x+s.x,p.y,p.z+s.z,p.x-v.x*.25,p.y,p.z-v.z*.25,p.x+v.x*.38,p.y,p.z+v.z*.38]);planeG.attributes.position.needsUpdate=true;lead.position.copy(p);}});
+  }
+}
+function makeVessels(g){
+  const routes=[[[10,.28,3],[14,.28,-8],[1,.28,-24]],[[12,.28,-4],[5,.28,-18],[-13,.28,-21]],[[14,.28,19],[22,.28,4],[25,.28,-12]]];
+  for(let i=0;i<9;i++){
+    const curve=new THREE.CatmullRomCurve3(routes[i%routes.length].map(p=>new THREE.Vector3(...p))),ps=new Float32Array(24),geom=new THREE.BufferGeometry();geom.setAttribute('position',new THREE.BufferAttribute(ps,3));g.add(new THREE.LineSegments(geom,material('LineBasicMaterial',{color:0xc1d8c9,transparent:true,opacity:.6,depthWrite:false})));const seed=i/9;
+    motions.push({update:(_,t)=>{const u=(seed+t*.006)%1,p=curve.getPoint(u),v=curve.getTangent(u),s=new THREE.Vector3(v.z,0,-v.x).multiplyScalar(.10),bow=p.clone().addScaledVector(v,.28),tail=p.clone().addScaledVector(v,-.18),left=tail.clone().add(s),right=tail.clone().sub(s),wake=p.clone().addScaledVector(v,-.8);ps.set([...bow.toArray(),...left.toArray(),...left.toArray(),...right.toArray(),...right.toArray(),...bow.toArray(),...tail.toArray(),...wake.toArray()]);geom.attributes.position.needsUpdate=true;}});
+  }
+}
+function makeConnections(){
+  const anchors=[[-122.478,37.819],[-122.44,37.77],[-122.4,37.79]],positions=[];
+  for(const p of anchors){const [x,z]=xy(...p);positions.push(x,0,z,x,60,z);}
+  const link=lines(positions,0x95c5b6,.06,root);
+  motions.push({update:()=>{const p=link.geometry.attributes.position;for(let i=0;i<anchors.length;i++){const [x,z]=xy(...anchors[i]);p.setXYZ(i*2,x,ground(x,z)+.1,z);p.setXYZ(i*2+1,x,ground(x,z)+layers[3].position.y+.1,z);}p.needsUpdate=true;link.material.opacity=.045*state.spread;}});
+  const dust=[];for(let i=0;i<280;i++)dust.push((rng()-.5)*190,rng()*100-12,(rng()-.5)*140);points(dust,0x4d899b,.13,.18,root);
+}
+
+function updateAnnotations(){
+  const w=$('#bay-hero').clientWidth,h=$('#bay-hero').clientHeight;
+  for(const [id,lon,lat,level,dx,dy] of [['gate',-122.478,37.820,3,12,-14],['sf',-122.43,37.758,3,-12,18],['marin',-122.53,37.868,0,-20,-12]]){
+    const p=world(lon,lat);p.y+=layers[level].position.y+.8;p.applyMatrix4(root.matrixWorld).project(camera);
+    const el=$('#landmark-'+id),x=(p.x*.5+.5)*w+dx,y=(-p.y*.5+.5)*h+dy;
+    el.style.transform=`translate(${x}px,${y}px)`;el.style.opacity=(state.focus<0||state.focus===level)&&x>15&&x<w-110&&y>88&&y<h-150?'.82':'0';
+  }
+}
+function setupUI(){
+  $('#sources-open').addEventListener('click',()=>$('#sources-dialog').showModal());
+  $('#sources-dialog').addEventListener('click',e=>{if(e.target===$('#sources-dialog'))$('#sources-dialog').close();});
+  const setPlay=()=>{$('#play').setAttribute('aria-pressed',state.playing);$('#play').setAttribute('aria-label',state.playing?'Pause motion':'Play motion');$('#play span').textContent=state.playing?'Ⅱ':'▶';};
+  $('#play').addEventListener('click',()=>{state.playing=!state.playing;setPlay();});setPlay();
+  $('#time').addEventListener('input',e=>state.time=+e.target.value);
+  $('#separation').addEventListener('input',e=>{state.spreadTarget=+e.target.value;updateAssemble();});
+  function updateAssemble(){$('#assemble').innerHTML=state.spreadTarget<.1?'Unfold the layers <span>↗</span>':'Bring together <span>↘</span>';}
+  $('#assemble').addEventListener('click',()=>{state.spreadTarget=state.spreadTarget<.1?.82:0;$('#separation').value=state.spreadTarget;updateAssemble();});
+  $('#view-reset').addEventListener('click',()=>{resetView();setFocus(-1);});
+  $('#auto-orbit').setAttribute('aria-pressed',state.orbit);$('#auto-orbit').addEventListener('click',()=>{state.orbit=!state.orbit;$('#auto-orbit').setAttribute('aria-pressed',state.orbit);});
+  document.querySelectorAll('[data-layer]').forEach(el=>el.addEventListener('click',()=>setFocus(state.focus===+el.dataset.layer?-1:+el.dataset.layer)));
+  window.addEventListener('keydown',e=>{if(e.target.matches('input,button,a')||$('#sources-dialog').open)return;if(e.code==='Space'){e.preventDefault();state.playing=!state.playing;setPlay();}if(e.code==='Escape')setFocus(-1);if(['Digit1','Digit2','Digit3','Digit4'].includes(e.code))setFocus(+e.code.at(-1)-1);});
+}
+const captions=[
+  'Earth & seabed / NOAA mapped relief reveals the shape beneath both land and water. Vertical scale is exaggerated.',
+  'Natural forces / Light, wind and water move through a shared geography. These flows are illustrative.',
+  'Living systems / Historical mapped street trees meet illustrative forest cover and wildlife movement.',
+  'The built world / Municipal footprints and streets share the terrain. Vehicles and connections illustrate activity.'
+];
+function setFocus(level){state.focus=level;document.querySelectorAll('[data-layer]').forEach(el=>{el.classList.toggle('selected',+el.dataset.layer===level);el.classList.toggle('dimmed',level>=0&&+el.dataset.layer!==level);el.setAttribute('aria-pressed',+el.dataset.layer===level);});$('#caption').textContent=level<0?'A digital twin connects observations, models and feedback—so we can explore what a change might mean.':captions[level];}
+function renderLoop(){
+  let last=performance.now(),lastStats=last;
+  function frame(now){
+    requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;
+    if(document.hidden)return;
+    if(state.playing){state.elapsed+=dt;state.time=(state.time+dt*.065)%24;$('#time').value=state.time;}
+    state.spread=mix(state.spread,state.spreadTarget,1-Math.exp(-dt*4));
+    layers.forEach((g,i)=>{g.position.y=i*(.18+state.spread*18.5);const fade=state.focus<0||state.focus===i?1:.09;g.userData.fade=mix(g.userData.fade,fade,1-Math.exp(-dt*4));g.traverse(o=>{if(!o.material)return;const m=o.material;if(m.userData.originalOpacity===undefined)return;const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));const night=m.userData.cityLights?1.15-daylight*.3:1;m.opacity=clamp(m.userData.originalOpacity*g.userData.fade*m.userData.dynamicGain*night,0,1);});});
+    for(let i=motions.length-1;i>=0;i--){const m=motions[i];if(m.update(dt,state.elapsed)&&m.once)motions.splice(i,1);}
+    if(state.orbit&&state.playing&&now/1000-state.draggedAt>12){controls.autoRotate=true;controls.autoRotateSpeed=.12;}else controls.autoRotate=false;
+    controls.update(dt);scene.updateMatrixWorld();
+    const hours=Math.floor(state.time),minutes=Math.floor((state.time-hours)*60);$('#clock').textContent=`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;
+    const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));scene.children.find(o=>o.isHemisphereLight).intensity=.55+daylight*.8;
+    updateAnnotations();renderer.render(scene,camera);
+    if(now-lastStats>2000){window.bayLayers.stats={...stats,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,points:renderer.info.render.points,frameMs:Math.round(dt*1000)};$('#scene').dataset.renderStats=JSON.stringify(window.bayLayers.stats);lastStats=now;}
+  }requestAnimationFrame(frame);
+}
+async function boot(){
+  try{
+    initRenderer();setupUI();
+    const loadJSON=async path=>{const r=await fetch(path);if(!r.ok)throw new Error(`Could not load ${path} (${r.status}).`);return r.json();};
+    const h=await fetch('./assets/elevation.f32');if(!h.ok)throw new Error('The elevation grid could not be loaded.');heightGrid=new Float32Array(await h.arrayBuffer());
+    [buildings,trees,streets]=await Promise.all(['buildings','trees','streets'].map(n=>loadJSON(`./assets/${n}.json`)));
+    $('#loading-copy').textContent='Tracing the coast. Finding the connections…';await new Promise(r=>setTimeout(r,40));
+    makeTerrain();makeForces();makeLivingSystems();makeBuiltWorld();makeConnections();
+    state.ready=true;
+    window.bayLayers={state,stats,renderer,scene,camera,controls,focus:setFocus,reset:resetView};
+    $('#mapped-data-copy').textContent=`${buildings.length.toLocaleString()} simplified San Francisco building footprints, ${streets.length.toLocaleString()} sampled street segments, and ${trees.length.toLocaleString()} mapped points from a historical street-tree inventory. These are partial source snapshots, not a present-day census. Regional forest placement, crown sizes and landmark meshes are illustrative.`;
+    renderLoop();$('#loading').classList.add('finished');setTimeout(()=>$('#loading').remove(),1300);
+  }catch(error){console.error(error);$('#loading').style.display='none';$('#error-copy').textContent=error.message;$('#error-panel').hidden=false;}
+}boot();
