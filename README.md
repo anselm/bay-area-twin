@@ -176,7 +176,7 @@ Use the [embed configurator](https://anselm.github.io/bay-area-twin/embed.html) 
 | `bg=transparent` | Fully transparent HTML/canvas; removes the dark vignette and distance fog. `transparent=1` remains an alias. |
 | `bg=132c3d` | Solid six-digit hex background matching your page. Omit `#` in URLs, or encode it as `%23`. Distance fog matches the chosen color. |
 | `camera=orbit` | Automatic slow orbit, as an alternative to the default tour. |
-| `camera=tour` | Default: a looping spline flight (about 28 seconds at the default speed) past SF, the Bay Bridge/East Bay, Marin woodland, Golden Gate and the seabed, with subtle turn banking. |
+| `camera=tour` | Default: a looping spline flight (about 28 seconds at the default speed) from Treasure Island through the Bay Bridge into SF, around Transamerica, out through Golden Gate and back over the Bay, with subtle turn banking. |
 | `speed=4` | Camera speed multiplier, 0.25–12; default 4. A tour takes 110 ÷ speed seconds: `speed=1` is the original pace, `speed=6` takes about 18 seconds. Applies to orbit too; does not change traffic or the day/night cycle. |
 | `camera=static` | No automatic camera movement; animated life still runs. |
 | `interactive=0` | Disable mouse/touch model controls. Default is `1`; parent wrapper pointer events must also be enabled for interaction. |
@@ -228,3 +228,7 @@ The camera now defaults to `speed=4` after feedback that the initial tour felt t
 ### Bridge fly-throughs
 
 The tour now descends into the built layer and follows both bridge centerlines between the stylized tower crossbars, then returns to wider landscape views. Close passes tighten camera following so smoothing does not cut across the bridge line. The camera near plane is 0.02 scene units and manual minimum orbit distance is 0.4 (previously 85), allowing visitors to explore details after taking over. These are artistic fly-throughs of simplified geometry, not navigation-grade collision simulation.
+
+### A continuous journey, with a separate gaze
+
+The current route enters westbound through the Bay Bridge after observing Treasure Island, cruises into SF, circles the modeled Transamerica Pyramid, follows the waterfront through Golden Gate, then climbs out and sweeps its gaze back toward the city before closing the loop over the Bay. Flight position and observation targets are authored as separate closed splines. A damped, rate-limited camera orientation prevents abrupt angle reversals when a target passes nearby; at default speed, observation turns are capped at 75 degrees per second. Manual takeover and idle resumption preserve the current viewing direction. The opening view now starts on this route. This supersedes the earlier disconnected landmark circuit.

@@ -2,7 +2,7 @@
 
 A speedrun of the thinking behind Bay Layers: what we wanted, what changed, and why.
 
-The October 17 entries were reconstructed retrospectively from the project conversation and Git history on the same date. They record the progression of the work, not verbatim notes or exact timestamps. Commit references anchor the implementation where useful; several early commits bundle more than one change.
+The first five October 17 entries were reconstructed retrospectively from the project conversation and Git history on the same date. They record the progression of the work, not verbatim notes or exact timestamps. Commit references anchor the implementation where useful; several early commits bundle more than one change.
 
 Read in this order:
 
@@ -15,5 +15,7 @@ Read in this order:
 6. [Camera speed](20261017-camera-speed.md) — a faster default and an adjustable camera-only multiplier.
 
 7. [Bridge fly-throughs](20261017-bridge-flythroughs.md) — descend through the bridge towers and unlock closer manual exploration.
+
+8. [Continuous camera journey](20261017-continuous-camera-journey.md) — a geographically coherent flight and independently smoothed observation.
 
 Future entries should be short and written when meaningful decisions happen. Preserve uncertainty and abandoned approaches when they explain a choice. Keep measured results tied to their conditions; avoid turning an illustrative landscape into a claim of an operational twin.

@@ -12,11 +12,10 @@ const initialCamera=['orbit','tour','static'].includes(params.get('camera'))?par
 let interactive=params.get('interactive')!=='0',dragging=false,cameraTravel=0,cameraBank=0;
 const tourPosition=new THREE.Vector3(),tourTarget=new THREE.Vector3();
 const tourTangent=new THREE.Vector3(),tourAhead=new THREE.Vector3(),tourTurn=new THREE.Vector3();
-// Closed, centripetal splines connect wide views and geographic points of interest.
+// Flight and observation are authored separately: one continuous westbound journey.
 const tourStops=[
-  {name:'Bay overview',position:[144,121,177],target:[0,22,0]},
-  {name:'San Francisco',position:[105,98,119],target:[8,47,15]},
-  {name:'Bay Bridge approach',position:[39,70,32],target:[22,47.3,3]}
+  {name:'Bay Bridge approach',position:[62,92,-40],target:[24,48,-5]},
+  {name:'Treasure Island',position:[33,61,-17],target:[23.6,47,-4.7]}
 ];
 function bridgeFlight(name,start,end,eyeHeight){
   const a=new THREE.Vector3(...start),b=new THREE.Vector3(...end),direction=b.clone().sub(a).normalize();
@@ -26,20 +25,38 @@ function bridgeFlight(name,start,end,eyeHeight){
     tourStops.push({name,position:p.toArray(),target:q.toArray()});
   }
 }
-// Eye-height passes follow the center of the simplified bridge decks, between tower crossbars.
-bridgeFlight('Through the Bay Bridge',[18.5,0,6.99375],[25,0,-.99911],1.23);
+// Enter westbound, from Yerba Buena/Treasure Island toward San Francisco.
+bridgeFlight('Through the Bay Bridge',[25,0,-.99911],[18.5,0,6.99375],1.23);
 tourStops.push(
-  {name:'Across the Bay',position:[100,133,-136],target:[26,36,-18]},
-  {name:'Marin woodland',position:[-35,108,-151],target:[-19,35,-25]},
-  {name:'Golden Gate approach',position:[-15,73,23],target:[-5,47.7,-3]}
+  {name:'Into San Francisco',position:[11,51,15],target:[4,49,7]},
+  {name:'Along the Embarcadero',position:[6,53,11],target:[8,49,3]},
+  {name:'Approaching Transamerica',position:[7,52,5],target:[14.9,47.5,4.93]},
+  {name:'Around Transamerica',position:[9.7,50.5,5],target:[14.9,47.5,4.93]},
+  {name:'Around Transamerica',position:[11.2,50.8,1.2],target:[14.9,47.5,4.93]},
+  {name:'Around Transamerica',position:[14.9,51,-.3],target:[14.9,47.5,4.93]},
+  {name:'Around Transamerica',position:[18.6,51.2,1.2],target:[14.9,47.5,4.93]},
+  {name:'Around Transamerica',position:[20,51.2,4.93],target:[14.9,47.5,4.93]},
+  {name:'Around Transamerica',position:[18.6,51.5,8.6],target:[14.9,47.5,4.93]},
+  {name:'Around Transamerica',position:[14.9,52,10.2],target:[14.9,47.5,4.93]},
+  {name:'Around Transamerica',position:[11.2,52.2,8.6],target:[14.9,47.5,4.93]},
+  {name:'Along the waterfront',position:[6,54,7],target:[-2,48,0]},
+  {name:'Golden Gate approach',position:[-1.5,53,9.8],target:[-4.2,47.7,-1.1]}
 );
 bridgeFlight('Through the Golden Gate',[-3.80263,0,.48290],[-5.84211,0,-7.62652],1.65);
 tourStops.push(
-  {name:'Coast & seabed',position:[-132,78,87],target:[-18,7,9]},
-  {name:'Living layers',position:[-33,142,193],target:[-8,26,0]}
+  {name:'Out through the Gate',position:[-11,57,-20],target:[-18,50,-26]},
+  {name:'Turning back toward the city',position:[-27,70,-30],target:[-22,49,-15]},
+  {name:'City behind us',position:[-55,95,-25],target:[6,47,6]},
+  {name:'Bay panorama',position:[-60,116,35],target:[10,45,4]},
+  {name:'Around the Bay',position:[-15,140,100],target:[14,46,5]},
+  {name:'Returning over the Bay',position:[75,126,72],target:[16,47,8]},
+  {name:'Back toward Treasure Island',position:[100,104,-15],target:[24,47,-5]}
 );
 const tourPath=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...s.position)),true,'centripetal');
 const tourLook=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...s.target)),true,'centripetal');
+const tourOrientation=new THREE.Quaternion(),desiredOrientation=new THREE.Quaternion();
+const tourLookMatrix=new THREE.Matrix4(),tourUp=new THREE.Vector3(0,1,0),tourDirection=new THREE.Vector3();
+let wasTourAutomatic=false;
 const requestedSpeed=Number(params.get('speed')??4);
 const cameraSpeed=Number.isFinite(requestedSpeed)?Math.min(12,Math.max(.25,requestedSpeed)):4;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -112,7 +129,9 @@ function moveCamera(dt,now){
   const automatic=state.orbit&&state.playing&&!dragging&&now/1000-state.draggedAt>12;
   controls.autoRotate=automatic&&state.cameraMode==='orbit';controls.autoRotateSpeed=.45*state.cameraSpeed;
   let bankTarget=0;
-  if(automatic&&state.cameraMode==='tour'){
+  const touring=automatic&&state.cameraMode==='tour';
+  if(touring){
+    if(!wasTourAutomatic)tourOrientation.setFromRotationMatrix(tourLookMatrix.lookAt(camera.position,controls.target,tourUp));
     cameraTravel+=dt*state.cameraSpeed;const phase=(cameraTravel/110)%1;
     $('#scene').dataset.tourProgress=phase.toFixed(4);
     tourPath.getPoint(phase,tourPosition);tourLook.getPoint(phase,tourTarget);
@@ -123,13 +142,24 @@ function moveCamera(dt,now){
     // Wide shots breathe on narrow embeds; bridge passes retain their precise centerline.
     if(camera.aspect<1.15)tourPosition.sub(tourTarget).multiplyScalar(1+.2*(1-close)).add(tourTarget);
     const follow=mix(.7*Math.sqrt(state.cameraSpeed),24,close);
-    const blend=1-Math.exp(-dt*follow);camera.position.lerp(tourPosition,blend);controls.target.lerp(tourTarget,blend);
+    const blend=1-Math.exp(-dt*follow);camera.position.lerp(tourPosition,blend);
+    // Limit observation rotation independently of translation. Never swing instantly through 180°.
+    const focusDistance=Math.max(2,camera.position.distanceTo(tourTarget));
+    desiredOrientation.setFromRotationMatrix(tourLookMatrix.lookAt(camera.position,tourTarget,tourUp));
+    const angle=tourOrientation.angleTo(desiredOrientation);
+    const turnLimit=THREE.MathUtils.degToRad(75)*Math.sqrt(state.cameraSpeed/4);
+    const turn=Math.min(angle*(1-Math.exp(-dt*8)),dt*turnLimit);
+    tourOrientation.rotateTowards(desiredOrientation,turn);
+    tourDirection.set(0,0,-1).applyQuaternion(tourOrientation);
+    controls.target.copy(camera.position).addScaledVector(tourDirection,focusDistance);
+    $('#scene').dataset.cameraTurnRate=String(dt>0?+(turn/dt*180/Math.PI).toFixed(2):0);
     tourPath.getTangent(phase,tourTangent);tourPath.getTangent((phase+.006)%1,tourAhead);
     tourTurn.crossVectors(tourTangent,tourAhead);
     // A few degrees of damped bank suggest turning forces without a rolling horizon.
     bankTarget=clamp(-tourTurn.y*1.7,-.065,.065);
     $('#scene').dataset.tourStop=tourStops[Math.floor(phase*tourStops.length)].name;
   }
+  wasTourAutomatic=touring;
   cameraBank=mix(cameraBank,bankTarget,1-Math.exp(-dt*2.2));
   $('#scene').dataset.cameraBank=String(+(cameraBank*180/Math.PI).toFixed(2));
   $('#scene').dataset.cameraMode=state.cameraMode;
@@ -158,6 +188,11 @@ function resetView(animate=true){
   if(animate)state.draggedAt=performance.now()/1000;
   const mobile=$('#bay-hero').clientWidth<700;
   const position=mobile?new THREE.Vector3(176,157,222):new THREE.Vector3(144,121,177);
+  if(!animate&&state.cameraMode==='tour'){
+    tourPath.getPoint(0,position);tourLook.getPoint(0,tourTarget);
+    if(mobile)position.sub(tourTarget).multiplyScalar(1.2).add(tourTarget);
+    camera.position.copy(position);controls.target.copy(tourTarget);controls.update();return;
+  }
   // The model lives slightly to the right, leaving the introduction quiet.
   if(animate){const from=camera.position.clone(),fromTarget=controls.target.clone();let t=0;motions.push({once:true,update:dt=>{t+=dt*.8;const k=1-Math.pow(1-clamp(t,0,1),3);camera.position.lerpVectors(from,position,k);controls.target.lerpVectors(fromTarget,new THREE.Vector3(mobile||isBackdrop?0:-7,mobile?20:16,0),k);return t>=1;}});}else{camera.position.copy(position);controls.target.set(mobile||isBackdrop?0:-7,mobile?20:16,0);controls.update();}
 }
@@ -423,7 +458,7 @@ function makeConnections(){
 
 function updateAnnotations(){
   const w=$('#bay-hero').clientWidth,h=$('#bay-hero').clientHeight;
-  for(const [id,lon,lat,level,dx,dy] of [['gate',-122.478,37.820,3,12,-14],['sf',-122.43,37.758,3,-12,18],['marin',-122.53,37.868,0,-20,-12],['bart',-122.342,37.796,3,8,16],['alcatraz',-122.423,37.827,0,7,-9],['angel',-122.4326,37.862,2,10,-8],['baybridge',-122.376,37.801,3,8,-15],['presidio',-122.466,37.798,2,-14,15]]){
+  for(const [id,lon,lat,level,dx,dy] of [['transamerica',-122.4034,37.7952,3,10,-14],['treasure',-122.371,37.824,3,10,-12],['gate',-122.478,37.820,3,12,-14],['sf',-122.43,37.758,3,-12,18],['marin',-122.53,37.868,0,-20,-12],['bart',-122.342,37.796,3,8,16],['alcatraz',-122.423,37.827,0,7,-9],['angel',-122.4326,37.862,2,10,-8],['baybridge',-122.376,37.801,3,8,-15],['presidio',-122.466,37.798,2,-14,15]]){
     const p=world(lon,lat);p.y+=layers[level].position.y+.8;p.applyMatrix4(root.matrixWorld).project(camera);
     const el=$('#landmark-'+id),x=(p.x*.5+.5)*w+dx,y=(-p.y*.5+.5)*h+dy;
     el.style.transform=`translate(${x}px,${y}px)`;el.style.opacity=(id==='bart'?state.focus===3:state.focus<0||state.focus===level)&&p.z>=-1&&p.z<=1&&x>15&&x<w-110&&y>88&&y<h-150?'.82':'0';
