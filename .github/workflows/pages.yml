@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check JavaScript
         run: node --check dist/main.js
+      - name: Version entry assets
+        run: node scripts/fingerprint-assets.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

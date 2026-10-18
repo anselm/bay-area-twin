@@ -9,6 +9,7 @@
     "check": "node --check dist/main.js && node --check scripts/serve.mjs",
     "prepare:geometry": "node scripts/prepare-geometry.mjs",
     "data:fetch": "python3 scripts/fetch-data.py && python3 scripts/fetch-features.py",
-    "data:prepare": "python3 scripts/prepare-data.py && node scripts/prepare-geometry.mjs"
+    "data:prepare": "python3 scripts/prepare-data.py && node scripts/prepare-geometry.mjs",
+    "prepare:release": "node scripts/fingerprint-assets.mjs"
   }
 }

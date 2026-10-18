@@ -232,3 +232,5 @@ The tour now descends into the built layer and follows both bridge centerlines b
 ### A continuous journey, with a separate gaze
 
 The current route enters westbound through the Bay Bridge after observing Treasure Island, cruises into SF, circles the modeled Transamerica Pyramid, follows the waterfront through Golden Gate, then climbs out and sweeps its gaze back toward the city before closing the loop over the Bay. Flight position and observation targets are authored as separate closed splines. A damped, rate-limited camera orientation prevents abrupt angle reversals when a target passes nearby; at default speed, observation turns are capped at 75 degrees per second. Manual takeover and idle resumption preserve the current viewing direction. The opening view now starts on this route. This supersedes the earlier disconnected landmark circuit.
+
+Pages automatically versions the entry JS/CSS URLs from their content hashes to avoid stale camera code in cached embeds. For other static hosts, run `npm run prepare:release` before uploading `dist/`; this only rewrites local asset URLs and never fetches data.
