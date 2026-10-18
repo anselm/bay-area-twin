@@ -169,9 +169,11 @@ The source footprint acquisition is a bounded sample (up to 100,000 features per
 
 ## Promotional media
 
-- `media/bay-layers-backdrop.gif`: regenerated October 18, 2026 from the slower landscape exploration, backdrop mode, 10 seconds, 800 × 450 at 10 fps, approximately 8.4 MiB. Suitable for the X web upload size limit.
-- `media/bay-layers-backdrop-mobile.gif`: 8-second, 560 × 315 at 8 fps version, approximately 2.3 MiB, for smaller uploads.
-- `media/bay-layers-backdrop.mp4`: the longer 22-second capture at 1280 × 720, H.264, 30 fps, with the same slower camera and controls hidden.
+- `media/bay-layers-backdrop.gif`: 11.4-second promotional descent from a middle-distance Bay overview through the Bay Bridge toward San Francisco. 560 × 315, 20 fps, 13.3 MB (decimal), looping with a short dissolve.
+- `media/bay-layers-backdrop-mobile.gif`: the complete same flight at 360 × 203, 15 fps, 4.4 MB (decimal), for smaller uploads.
+- `media/bay-layers-backdrop.mp4`: the same 11.4-second shot at 1280 × 720, H.264, 30 fps. Prefer this version when sharpness and smooth motion matter most.
+
+Refreshed October 18, 2026. These are deliberately paced promotional shots, using the scene's authored bridge path with a continuous descent rather than recording a distant observation hold. Frames were advanced at fixed 1/30-second simulation steps to avoid capture-timing stutter. The GIFs trade resolution/palette for smoother motion within upload budgets; the video retains the full capture resolution.
 
 The GIF is embedded at the top of this README. The live widget remains interactive and continuously rendered; the GIF is a promotional recording. Mapped geometry is historical/sampled and motion is illustrative. When sharing independently, retain a source credit such as “Bay Layers by Anselm Hook · NOAA / Marin vegetation map partners / municipal data / © OpenStreetMap contributors.”
 
