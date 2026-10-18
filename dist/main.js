@@ -129,7 +129,7 @@ function setInteractive(value){
   document.body.classList.toggle('interactive',value);
   $('#scene').dataset.interactive=String(value);
 }
-// Broad observation stations, visited in a changing deterministic order rather than a short circuit.
+// Mix close authored bridge/city passages with changing landscape observation stations.
 const explorationSites=[
   {name:'The Bay, unfolded',position:[100,112,120],target:[0,25,0]},
   {name:'Golden Gate and Headlands',position:[-47,85,42],target:[-6,37,-5]},
@@ -140,27 +140,47 @@ const explorationSites=[
   {name:'The islands and water',position:[15,97,-88],target:[7,28,-17]},
   {name:'City, coast and Presidio',position:[-65,93,65],target:[-4,31,5]}
 ];
-let exploreClock=0,exploreLeg=0,exploreFrom=0,exploreTo=3;
+const bridgeEntry=1,cityVisit=tourStops.findIndex(s=>s.name==='Around Transamerica')+3;
+const cityLookback=tourStops.findIndex(s=>s.name==='City behind us');
+for(const [site,index] of [[3,bridgeEntry],[4,cityVisit],[1,cityLookback]]){
+  explorationSites[site]={name:site===3?'Treasure Island and Bay Bridge':site===4?'Beside Transamerica':'Looking back through the Golden Gate',position:tourStops[index].position,target:tourStops[index].target};
+}
+let exploreClock=0,exploreLeg=0,exploreFrom=3,exploreTo=4,exploreWide=0,exploreFlightPhase=null;
+function explorationLeg(){
+  const start=exploreFrom===3&&exploreTo===4?bridgeEntry:exploreFrom===4&&exploreTo===1?cityVisit:null;
+  const end=exploreFrom===3&&exploreTo===4?cityVisit:cityLookback;
+  const hold=exploreFrom===3?8:12;
+  const distance=new THREE.Vector3(...explorationSites[exploreFrom].position).distanceTo(new THREE.Vector3(...explorationSites[exploreTo].position));
+  return {start,end,hold,travel:start===null?Math.max(22,distance/4):(end-start)/tourStops.length*150};
+}
 function explorationView(dt){
   exploreClock+=dt*state.cameraSpeed/2;
-  const hold=14;
-  const travelTime=()=>Math.max(22,new THREE.Vector3(...explorationSites[exploreFrom].position).distanceTo(new THREE.Vector3(...explorationSites[exploreTo].position))/4);
-  let travel=travelTime();
-  while(exploreClock>=hold+travel){
-    exploreClock-=hold+travel;exploreFrom=exploreTo;exploreLeg++;
-    // Coprime steps vary the itinerary; never select the current station.
-    exploreTo=(exploreFrom+[3,5,2,7,4][exploreLeg%5])%explorationSites.length;travel=travelTime();
+  let leg=explorationLeg();
+  while(exploreClock>=leg.hold+leg.travel){
+    exploreClock-=leg.hold+leg.travel;exploreFrom=exploreTo;exploreLeg++;
+    if(exploreFrom===3)exploreTo=4;
+    else if(exploreFrom===4)exploreTo=1;
+    else if(exploreFrom===1)exploreTo=[2,6,5,7,0][exploreWide++%5];
+    else exploreTo=3;
+    leg=explorationLeg();
   }
   const a=explorationSites[exploreFrom],b=explorationSites[exploreTo];
-  const u=clamp((exploreClock-hold)/travel,0,1),k=u*u*u*(u*(u*6-15)+10);
-  tourPosition.fromArray(a.position).lerp(new THREE.Vector3(...b.position),k);
-  tourTarget.fromArray(a.target).lerp(new THREE.Vector3(...b.target),k);
-  // A restrained drift keeps each observation alive, with zero jumps at station changes.
-  const breath=Math.sin(Math.PI*clamp(exploreClock/hold,0,1));
-  if(exploreClock<hold){tourPosition.x+=breath*2; tourPosition.z+=breath*1.5;}
-  tourPosition.y+=Math.sin(Math.PI*k)*7;
-  $('#scene').dataset.tourStop=u===0?a.name:`${a.name} → ${b.name}`;
+  const u=clamp((exploreClock-leg.hold)/leg.travel,0,1),k=u*u*u*(u*(u*6-15)+10);
+  exploreFlightPhase=null;
+  if(leg.start!==null){
+    // Reuse the precise bridge centerlines and separate gaze, stopping gently at city viewpoints.
+    const phase=mix(leg.start,leg.end,k)/tourStops.length;
+    tourPath.getPoint(phase,tourPosition);tourLook.getPoint(phase,tourTarget);
+    exploreFlightPhase=phase;
+    $('#scene').dataset.tourStop=u===0?a.name:tourStops[Math.floor(phase*tourStops.length)].name;
+  }else{
+    tourPosition.fromArray(a.position).lerp(new THREE.Vector3(...b.position),k);
+    tourTarget.fromArray(a.target).lerp(new THREE.Vector3(...b.target),k);
+    tourPosition.y+=Math.sin(Math.PI*k)*7;
+    $('#scene').dataset.tourStop=u===0?a.name:`${a.name} → ${b.name}`;
+  }
   $('#scene').dataset.explorationLeg=String(exploreLeg);
+  $('#scene').dataset.explorationPassage=String(leg.start!==null&&u>0);
 }
 function moveCamera(dt,now){
   const automatic=state.orbit&&state.playing&&!dragging&&now/1000-state.draggedAt>12;
@@ -191,10 +211,11 @@ function moveCamera(dt,now){
     controls.target.copy(camera.position).addScaledVector(tourDirection,focusDistance);
     $('#scene').dataset.cameraTurnRate=String(dt>0?+(turn/dt*180/Math.PI).toFixed(2):0);
     $('#scene').dataset.cameraAimError=String(+(tourOrientation.angleTo(desiredOrientation)*180/Math.PI).toFixed(2));
-    tourPath.getTangent(phase,tourTangent);tourPath.getTangent((phase+.006)%1,tourAhead);
+    const bankPhase=state.cameraMode==='explore'?(exploreFlightPhase??phase):phase;
+    tourPath.getTangent(bankPhase,tourTangent);tourPath.getTangent((bankPhase+.006)%1,tourAhead);
     tourTurn.crossVectors(tourTangent,tourAhead);
     // A few degrees of damped bank suggest turning forces without a rolling horizon.
-    bankTarget=state.cameraMode==='explore'?0:clamp(-tourTurn.y*1.7,-.065,.065);
+    bankTarget=state.cameraMode==='explore'&&exploreFlightPhase===null?0:clamp(-tourTurn.y*1.7,-.065,.065);
     if(state.cameraMode==='tour')$('#scene').dataset.tourStop=tourStops[Math.floor(phase*tourStops.length)].name;
   }
   wasTourAutomatic=touring;
@@ -229,7 +250,7 @@ function resetView(animate=true){
   const mobile=$('#bay-hero').clientWidth<700;
   const position=mobile?new THREE.Vector3(176,157,222):new THREE.Vector3(144,121,177);
   if(!animate&&state.cameraMode==='explore'){
-    position.fromArray(explorationSites[0].position);tourTarget.fromArray(explorationSites[0].target);
+    position.fromArray(explorationSites[3].position);tourTarget.fromArray(explorationSites[3].target);
     camera.position.copy(position);controls.target.copy(tourTarget);controls.update();return;
   }
   if(!animate&&state.cameraMode==='tour'){

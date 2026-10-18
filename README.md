@@ -10,7 +10,7 @@ A visual exercise in imagining what a whole-systems model might consist of, usin
 
 [Use cases and regional portability](docs/UTILITY-AND-PORTABILITY.md) describes twelve grounded applications and the evidence/models they would require. [Location event API](docs/EVENTS.md) documents externally supplied, temporary location pulses.
 
-The default camera now explores broad points of interest, lingering before slow transitions with a varying itinerary. Default speed is **2**, half the previous setting. The authored bridge flight remains available with `camera=tour` (about 55 seconds at speed 2). Existing embeds with an explicit `speed=4` retain that override; remove it or change it to 2.
+The default camera mixes close bridge passages and city observation with broader landscape views. It opens near Treasure Island, flies through the Bay Bridge, lingers beside Transamerica, passes through Golden Gate and looks back at the city. A changing landscape destination follows before the next close journey. Default speed is **2**, half the previous setting. The authored bridge flight remains available with `camera=tour` (about 55 seconds at speed 2). Existing embeds with an explicit `speed=4` retain that override; remove it or change it to 2.
 
 Sparse red aviation-style beacons are **illustrative**, not a surveyed lamp inventory. No events appear automatically: the host supplies them through `bay-layers:event` or `window.bayLayers.showEvent()`.
 
@@ -185,7 +185,7 @@ Use the [embed configurator](https://anselm.github.io/bay-area-twin/embed.html) 
 | `bg=transparent` | Fully transparent HTML/canvas; removes the dark vignette and distance fog. `transparent=1` remains an alias. |
 | `bg=132c3d` | Solid six-digit hex background matching your page. Omit `#` in URLs, or encode it as `%23`. Distance fog matches the chosen color. |
 | `camera=orbit` | Automatic slow orbit, as an alternative to the optional bridge tour. |
-| `camera=explore` | Default: linger at broad observation stations and travel slowly between them, varying the itinerary. At speed 2, observations linger for 14 seconds, then transition for at least 22 seconds; longer distances take proportionally longer. |
+| `camera=explore` | Default: close Bay Bridge/city/Golden Gate passages interspersed with changing landscape destinations. At speed 2, linger for 8–12 seconds; close passages use a slower authored path, and broad transitions take at least 22 seconds. |
 | `camera=tour` | Optional: a looping spline flight (about 55 seconds at the default speed) from Treasure Island through the Bay Bridge into SF, around Transamerica, out through Golden Gate and back over the Bay, with subtle turn banking. |
 | `speed=2` | Camera speed multiplier, 0.25–12; default 2. A tour takes 110 ÷ speed seconds: `speed=1` is the original pace, `speed=6` takes about 18 seconds. Applies to orbit too; does not change traffic or the day/night cycle. |
 | `camera=static` | No automatic camera movement; animated life still runs. |

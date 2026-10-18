@@ -27,3 +27,5 @@ Future entries should be short and written when meaningful decisions happen. Pre
 11. [An open question](20261018-an-open-question.md) — frame the scene as an inquiry into whole-systems models and their possible utility.
 
 12. [Use-case links](20261018-use-cases-link.md) — make the practical questions discoverable from the homepage.
+
+13. [Close and wide](20261018-close-and-wide.md) — bring bridge passages and city detail back into the slower exploration.
