@@ -31,3 +31,5 @@ Future entries should be short and written when meaningful decisions happen. Pre
 13. [Close and wide](20261018-close-and-wide.md) — bring bridge passages and city detail back into the slower exploration.
 
 14. [Bridge demo](20261018-bridge-demo.md) — a fixed-step promotional descent with smoother GIFs and a sharp video master.
+
+15. [Wiki link](20261018-wiki-link.md) — keep digitaltwins.wiki visible in the top-left, including backdrop mode.

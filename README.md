@@ -157,6 +157,9 @@ The source footprint acquisition is a bounded sample (up to 100,000 features per
 
 ## Notes for agents embedding this widget
 
+The top-left wordmark links to **digitaltwins.wiki** in a new tab and remains visible in backdrop mode, including transparent backgrounds. Keep iframe/wrapper pointer events enabled if visitors should be able to follow it. A host overlay or `pointer-events:none` on the iframe prevents clicks; for purely decorative iframes, provide an equivalent visible link on the host page.
+
+
 - Prefer an iframe using `https://anselm.github.io/bay-area-twin/?backdrop=1`. Do not fetch JavaScript from raw GitHub URLs or inject this scene's styles into the host page.
 - Use `&transparent=1` if the host background should show through. Plain backdrop mode has its own dark background. Give the iframe a real height; width alone will not size it correctly. Wide headers around 16:9 or 2:1 work well.
 - For decorative backgrounds, set `aria-hidden="true"`, `tabindex="-1"`, and `pointer-events:none`; put article content above the iframe. Use the accessible interactive view separately if visitors need to explore or read provenance.
