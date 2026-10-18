@@ -581,7 +581,7 @@ const captions=[
   'Living systems / Historical mapped street trees meet illustrative forest cover, birds and an occasional whale.',
   'The built world / Headlights, sailboats and BART reveal life above and below the water. Routes and movement are illustrative.'
 ];
-function setFocus(level){state.focus=level;document.querySelectorAll('[data-layer]').forEach(el=>{el.classList.toggle('selected',+el.dataset.layer===level);el.classList.toggle('dimmed',level>=0&&+el.dataset.layer!==level);el.setAttribute('aria-pressed',+el.dataset.layer===level);});$('#caption').textContent=level<0?'A digital twin connects observations, models and feedback—so we can explore what a change might mean.':captions[level];}
+function setFocus(level){state.focus=level;document.querySelectorAll('[data-layer]').forEach(el=>{el.classList.toggle('selected',+el.dataset.layer===level);el.classList.toggle('dimmed',level>=0&&+el.dataset.layer!==level);el.setAttribute('aria-pressed',+el.dataset.layer===level);});$('#caption').textContent=level<0?'What would it take to connect these layers—and what questions could that help us explore?':captions[level];}
 function renderLoop(){
   let last=performance.now(),lastStats=last,lastPaint=0;
   function frame(now){

@@ -23,3 +23,5 @@ Future entries should be short and written when meaningful decisions happen. Pre
 9. [Exploration and events](20261018-exploration-and-events.md) — quieter observation stations, illustrative beacons, external events and practical uses.
 
 10. [Promotion refresh](20261018-promotion-refresh.md) — new backdrop GIFs and video from the slower landscape exploration.
+
+11. [An open question](20261018-an-open-question.md) — frame the scene as an inquiry into whole-systems models and their possible utility.

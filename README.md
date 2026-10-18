@@ -4,7 +4,7 @@
 
 ![Bay Layers animated backdrop](media/bay-layers-backdrop.gif)
 
-A wide, luminous, interactive portrait of San Francisco Bay that explains the idea of a digital twin through four shared geographic layers: earth and seabed, natural forces, living systems, and the built world.
+A visual exercise in imagining what a whole-systems model might consist of, using four layers of San Francisco Bay: earth and seabed, natural forces, living systems, and the built world. It illuminates a possibility and asks if, and how, connecting these systems could be useful. The shared view is a starting point for that inquiry; the relationships and models still need to be investigated.
 
 ## Practical directions
 
