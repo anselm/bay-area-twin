@@ -151,8 +151,8 @@ function moveCamera(dt,now){
     const focusDistance=Math.max(2,camera.position.distanceTo(tourTarget));
     desiredOrientation.setFromRotationMatrix(tourLookMatrix.lookAt(camera.position,tourTarget,tourUp));
     const angle=tourOrientation.angleTo(desiredOrientation);
-    const turnLimit=THREE.MathUtils.degToRad(75)*Math.sqrt(state.cameraSpeed/4);
-    const turn=Math.min(angle*(1-Math.exp(-dt*8)),dt*turnLimit);
+    const turnLimit=THREE.MathUtils.degToRad(75)*state.cameraSpeed/4;
+    const turn=Math.min(angle*(1-Math.exp(-dt*8*state.cameraSpeed/4)),dt*turnLimit);
     tourOrientation.rotateTowards(desiredOrientation,turn);
     tourDirection.set(0,0,-1).applyQuaternion(tourOrientation);
     controls.target.copy(camera.position).addScaledVector(tourDirection,focusDistance);
