@@ -28,9 +28,10 @@ function bridgeFlight(name,start,end,eyeHeight){
 // Enter westbound, from Yerba Buena/Treasure Island toward San Francisco.
 bridgeFlight('Through the Bay Bridge',[25,0,-.99911],[18.5,0,6.99375],1.23);
 tourStops.push(
-  {name:'Into San Francisco',position:[11,51,15],target:[4,49,7]},
-  {name:'Along the Embarcadero',position:[6,53,11],target:[8,49,3]},
-  {name:'Approaching Transamerica',position:[7,52,5],target:[14.9,47.5,4.93]},
+  {name:'Into San Francisco',position:[11,51,15],target:[3,49,15]},
+  {name:'Along the Embarcadero',position:[6,53,11],target:[-.5,49,4.5]},
+  {name:'Approaching Transamerica',position:[5,52,7],target:[5,48,0]},
+  {name:'Approaching Transamerica',position:[6,51.5,3],target:[13,47.5,-4]},
   {name:'Around Transamerica',position:[9.7,50.5,5],target:[14.9,47.5,4.93]},
   {name:'Around Transamerica',position:[11.2,50.8,1.2],target:[14.9,47.5,4.93]},
   {name:'Around Transamerica',position:[14.9,51,-.3],target:[14.9,47.5,4.93]},
@@ -39,14 +40,17 @@ tourStops.push(
   {name:'Around Transamerica',position:[18.6,51.5,8.6],target:[14.9,47.5,4.93]},
   {name:'Around Transamerica',position:[14.9,52,10.2],target:[14.9,47.5,4.93]},
   {name:'Around Transamerica',position:[11.2,52.2,8.6],target:[14.9,47.5,4.93]},
-  {name:'Along the waterfront',position:[6,54,7],target:[-2,48,0]},
+  {name:'Along the waterfront',position:[6,54,7],target:[6,48,0]},
   {name:'Golden Gate approach',position:[-1.5,53,9.8],target:[-4.2,47.7,-1.1]}
 );
 bridgeFlight('Through the Golden Gate',[-3.80263,0,.48290],[-5.84211,0,-7.62652],1.65);
 tourStops.push(
-  {name:'Out through the Gate',position:[-11,57,-20],target:[-18,50,-26]},
-  {name:'Turning back toward the city',position:[-27,70,-30],target:[-22,49,-15]},
-  {name:'City behind us',position:[-55,95,-25],target:[6,47,6]},
+  {name:'Out through the Gate',position:[-9,52,-16],target:[-15,48,-20]},
+  {name:'Climbing above the Headlands',position:[-16,62,-24],target:[-25,48,-24]},
+  {name:'Sweeping along the coast',position:[-28,74,-29],target:[-34,47,-19]},
+  {name:'Turning back toward the city',position:[-41,86,-29],target:[-32,47,-12]},
+  {name:'City behind us',position:[-55,98,-23],target:[-7,47,4]},
+  {name:'Looking back over the Bay',position:[-62,112,-3],target:[10,47,5]},
   {name:'Bay panorama',position:[-60,116,35],target:[10,45,4]},
   {name:'Around the Bay',position:[-15,140,100],target:[14,46,5]},
   {name:'Returning over the Bay',position:[75,126,72],target:[16,47,8]},
@@ -153,6 +157,7 @@ function moveCamera(dt,now){
     tourDirection.set(0,0,-1).applyQuaternion(tourOrientation);
     controls.target.copy(camera.position).addScaledVector(tourDirection,focusDistance);
     $('#scene').dataset.cameraTurnRate=String(dt>0?+(turn/dt*180/Math.PI).toFixed(2):0);
+    $('#scene').dataset.cameraAimError=String(+(tourOrientation.angleTo(desiredOrientation)*180/Math.PI).toFixed(2));
     tourPath.getTangent(phase,tourTangent);tourPath.getTangent((phase+.006)%1,tourAhead);
     tourTurn.crossVectors(tourTangent,tourAhead);
     // A few degrees of damped bank suggest turning forces without a rolling horizon.
