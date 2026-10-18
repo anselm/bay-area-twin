@@ -8,7 +8,7 @@ const isEmbed=params.has('embed')||isBackdrop;
 if(isEmbed)document.body.classList.add('embed');
 if(isBackdrop)document.body.classList.add('backdrop');
 const initialBackground=params.get('bg')||(params.get('transparent')==='1'?'transparent':'071019');
-const initialCamera=['orbit','tour','static'].includes(params.get('camera'))?params.get('camera'):'tour';
+const initialCamera=['explore','orbit','tour','static'].includes(params.get('camera'))?params.get('camera'):'explore';
 let interactive=params.get('interactive')!=='0',dragging=false,cameraTravel=0,cameraBank=0;
 const tourPosition=new THREE.Vector3(),tourTarget=new THREE.Vector3();
 const tourTangent=new THREE.Vector3(),tourAhead=new THREE.Vector3(),tourTurn=new THREE.Vector3();
@@ -61,8 +61,8 @@ const tourLook=new THREE.CatmullRomCurve3(tourStops.map(s=>new THREE.Vector3(...
 const tourOrientation=new THREE.Quaternion(),desiredOrientation=new THREE.Quaternion();
 const tourLookMatrix=new THREE.Matrix4(),tourUp=new THREE.Vector3(0,1,0),tourDirection=new THREE.Vector3();
 let wasTourAutomatic=false;
-const requestedSpeed=Number(params.get('speed')??4);
-const cameraSpeed=Number.isFinite(requestedSpeed)?Math.min(12,Math.max(.25,requestedSpeed)):4;
+const requestedSpeed=Number(params.get('speed')??2);
+const cameraSpeed=Number.isFinite(requestedSpeed)?Math.min(12,Math.max(.25,requestedSpeed)):2;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const state={playing:!reducedMotion,time:16.3,elapsed:0,spread:.82,spreadTarget:.82,focus:-1,orbit:!reducedMotion,draggedAt:-100,ready:false,cameraMode:initialCamera,cameraSpeed};
 if(initialCamera==='static')state.orbit=false;
@@ -129,16 +129,49 @@ function setInteractive(value){
   document.body.classList.toggle('interactive',value);
   $('#scene').dataset.interactive=String(value);
 }
+// Broad observation stations, visited in a changing deterministic order rather than a short circuit.
+const explorationSites=[
+  {name:'The Bay, unfolded',position:[100,112,120],target:[0,25,0]},
+  {name:'Golden Gate and Headlands',position:[-47,85,42],target:[-6,37,-5]},
+  {name:'Marin living landscape',position:[-65,85,-65],target:[-16,24,-23]},
+  {name:'Treasure Island and Bay Bridge',position:[66,80,-38],target:[22,39,0]},
+  {name:'San Francisco skyline',position:[43,77,43],target:[11,43,8]},
+  {name:'East Bay connections',position:[88,93,35],target:[40,33,-3]},
+  {name:'The islands and water',position:[15,97,-88],target:[7,28,-17]},
+  {name:'City, coast and Presidio',position:[-65,93,65],target:[-4,31,5]}
+];
+let exploreClock=0,exploreLeg=0,exploreFrom=0,exploreTo=3;
+function explorationView(dt){
+  exploreClock+=dt*state.cameraSpeed/2;
+  const hold=14;
+  const travelTime=()=>Math.max(22,new THREE.Vector3(...explorationSites[exploreFrom].position).distanceTo(new THREE.Vector3(...explorationSites[exploreTo].position))/4);
+  let travel=travelTime();
+  while(exploreClock>=hold+travel){
+    exploreClock-=hold+travel;exploreFrom=exploreTo;exploreLeg++;
+    // Coprime steps vary the itinerary; never select the current station.
+    exploreTo=(exploreFrom+[3,5,2,7,4][exploreLeg%5])%explorationSites.length;travel=travelTime();
+  }
+  const a=explorationSites[exploreFrom],b=explorationSites[exploreTo];
+  const u=clamp((exploreClock-hold)/travel,0,1),k=u*u*u*(u*(u*6-15)+10);
+  tourPosition.fromArray(a.position).lerp(new THREE.Vector3(...b.position),k);
+  tourTarget.fromArray(a.target).lerp(new THREE.Vector3(...b.target),k);
+  // A restrained drift keeps each observation alive, with zero jumps at station changes.
+  const breath=Math.sin(Math.PI*clamp(exploreClock/hold,0,1));
+  if(exploreClock<hold){tourPosition.x+=breath*2; tourPosition.z+=breath*1.5;}
+  tourPosition.y+=Math.sin(Math.PI*k)*7;
+  $('#scene').dataset.tourStop=u===0?a.name:`${a.name} → ${b.name}`;
+  $('#scene').dataset.explorationLeg=String(exploreLeg);
+}
 function moveCamera(dt,now){
   const automatic=state.orbit&&state.playing&&!dragging&&now/1000-state.draggedAt>12;
   controls.autoRotate=automatic&&state.cameraMode==='orbit';controls.autoRotateSpeed=.45*state.cameraSpeed;
   let bankTarget=0;
-  const touring=automatic&&state.cameraMode==='tour';
+  const touring=automatic&&['tour','explore'].includes(state.cameraMode);
   if(touring){
     if(!wasTourAutomatic)tourOrientation.setFromRotationMatrix(tourLookMatrix.lookAt(camera.position,controls.target,tourUp));
     cameraTravel+=dt*state.cameraSpeed;const phase=(cameraTravel/110)%1;
     $('#scene').dataset.tourProgress=phase.toFixed(4);
-    tourPath.getPoint(phase,tourPosition);tourLook.getPoint(phase,tourTarget);
+    if(state.cameraMode==='explore')explorationView(dt);else{tourPath.getPoint(phase,tourPosition);tourLook.getPoint(phase,tourTarget);}
     const spacing=.18+state.spread*18.5,reference=.18+.82*18.5;
     const close=clamp((76-tourPosition.y)/22,0,1),layerShift=3*(spacing-reference);
     tourPosition.y+=layerShift*close;
@@ -161,8 +194,8 @@ function moveCamera(dt,now){
     tourPath.getTangent(phase,tourTangent);tourPath.getTangent((phase+.006)%1,tourAhead);
     tourTurn.crossVectors(tourTangent,tourAhead);
     // A few degrees of damped bank suggest turning forces without a rolling horizon.
-    bankTarget=clamp(-tourTurn.y*1.7,-.065,.065);
-    $('#scene').dataset.tourStop=tourStops[Math.floor(phase*tourStops.length)].name;
+    bankTarget=state.cameraMode==='explore'?0:clamp(-tourTurn.y*1.7,-.065,.065);
+    if(state.cameraMode==='tour')$('#scene').dataset.tourStop=tourStops[Math.floor(phase*tourStops.length)].name;
   }
   wasTourAutomatic=touring;
   cameraBank=mix(cameraBank,bankTarget,1-Math.exp(-dt*2.2));
@@ -176,14 +209,16 @@ function moveCamera(dt,now){
 window.addEventListener('message',event=>{
   if(window.parent===window||event.source!==window.parent)return;
   if(params.has('parentOrigin')&&event.origin!==params.get('parentOrigin'))return;
-  const m=event.data;if(!m||m.type!=='bay-layers:configure'||!controls)return;
+  const m=event.data;if(!m||!controls)return;
+  if(m.type==='bay-layers:event'){showEvent(m.event);return;}
+  if(m.type!=='bay-layers:configure')return;
   if(typeof m.background==='string')setBackground(m.background);
   if(typeof m.interactive==='boolean')setInteractive(m.interactive);
   if(Number.isFinite(m.speed))state.cameraSpeed=clamp(m.speed,.25,12);
   if(typeof m.playing==='boolean'){
     state.playing=m.playing;$('#play').setAttribute('aria-pressed',state.playing);$('#play').setAttribute('aria-label',state.playing?'Pause motion':'Play motion');$('#play span').textContent=state.playing?'Ⅱ':'▶';
   }
-  if(['orbit','tour','static'].includes(m.camera)){state.cameraMode=m.camera;state.orbit=m.camera!=='static';$('#auto-orbit').setAttribute('aria-pressed',state.orbit);}
+  if(['explore','orbit','tour','static'].includes(m.camera)){state.cameraMode=m.camera;state.orbit=m.camera!=='static';$('#auto-orbit').setAttribute('aria-pressed',state.orbit);}
   if(Number.isFinite(m.separation)){state.spreadTarget=clamp(m.separation,0,1);$('#separation').value=state.spreadTarget;}
   if(Number.isInteger(m.focus)&&m.focus>=-1&&m.focus<=3)setFocus(m.focus);
   if(m.reset===true)resetView();
@@ -193,6 +228,10 @@ function resetView(animate=true){
   if(animate)state.draggedAt=performance.now()/1000;
   const mobile=$('#bay-hero').clientWidth<700;
   const position=mobile?new THREE.Vector3(176,157,222):new THREE.Vector3(144,121,177);
+  if(!animate&&state.cameraMode==='explore'){
+    position.fromArray(explorationSites[0].position);tourTarget.fromArray(explorationSites[0].target);
+    camera.position.copy(position);controls.target.copy(tourTarget);controls.update();return;
+  }
   if(!animate&&state.cameraMode==='tour'){
     tourPath.getPoint(0,position);tourLook.getPoint(0,tourTarget);
     if(mobile)position.sub(tourTarget).multiplyScalar(1.2).add(tourTarget);
@@ -363,6 +402,7 @@ function makeBuiltWorld(){
   // Simplified geographic landmark silhouettes (not survey-quality building models).
   landmarkTower(-122.3965,37.7898,3.2,.30,.41,'salesforce',g);
   landmarkTower(-122.4034,37.7952,2.7,.32,.32,'pyramid',g);
+  makeBeacons(g);
   makeFlight(g);
   makeVessels(g);
   makeTransbayTube(g);
@@ -371,6 +411,58 @@ function makeBuiltWorld(){
   const up=utility.map(p=>world(...p,.1));trail(up.map(p=>[p.x,p.y-.3,p.z]),0x77b5c1,.33,g);
   const packet=points([0,0,0],0xa6f3e7,.65,.85,g);
   motions.push({update:(_,t)=>{if(!Number.isFinite(t))return;const f=((t*.08)%1+1)%1,k=f*(up.length-1),i=Math.min(up.length-2,Math.floor(k));tmp.lerpVectors(up[i],up[i+1],k-i);packet.position.copy(tmp);packet.position.y-=.3;}});
+}
+function makeBeacons(g){
+  // Artistic placements on sampled tall buildings and modeled bridge towers, not surveyed lamps.
+  const sites=[],cells=new Set();
+  for(const b of [...buildings].sort((a,b)=>b.h-a.h)){
+    if(b.h<65||sites.length>=48)continue;
+    const [x,z]=xy(...b.c),key=`${Math.floor(x/1.3)},${Math.floor(z/1.3)}`;
+    if(cells.has(key))continue;cells.add(key);sites.push([x,ground(x,z)+b.h*.0105+.08,z]);
+  }
+  for(const [a,b,h] of [[[-122.47445,37.80855],[-122.4822,37.8329],2.5],[[-122.3897,37.789],[-122.365,37.813],1.8],[[-122.365,37.813],[-122.300,37.8245],1.8]]){
+    const start=world(...a),end=world(...b);
+    for(const f of [.25,.75]){const v=start.clone().lerp(end,f);sites.push([v.x,h,v.z]);}
+  }
+  const lamps=points(sites.flat(),0xff453b,.52,.95,g),colors=new Float32Array(sites.length*3);
+  lamps.geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));lamps.material.vertexColors=true;
+  motions.push({update:(_,t)=>{
+    const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));
+    for(let i=0;i<sites.length;i++){
+      const phase=(t/2.8+(i%7)/7)%1,pulse=Math.pow(Math.max(0,Math.sin(phase*Math.PI*2)),10);
+      const gain=(.1+.9*pulse)*(1-daylight*.72);colors.set([gain,gain,gain],i*3);
+    }
+    lamps.geometry.attributes.color.needsUpdate=true;
+  }});stats.illustrativeBeacons=sites.length;
+}
+
+const activeEvents=[];
+function removeEvent(e){e.group.removeFromParent();e.ring.geometry.dispose();e.ring.material.dispose();e.label.remove();}
+function showEvent(input){
+  if(!state.ready||!input||typeof input!=='object')return false;
+  const {longitude:lon,latitude:lat}=input;
+  if(!Number.isFinite(lon)||!Number.isFinite(lat)||lon<BOUNDS[0]||lon>BOUNDS[2]||lat<BOUNDS[1]||lat>BOUNDS[3]||typeof input.title!=='string'||!input.title.trim())return false;
+  if(activeEvents.length>=12)removeEvent(activeEvents.shift());
+  const duration=clamp(Number.isFinite(input.duration)?input.duration:8,2,30);
+  const color=typeof input.color==='string'&&/^#[0-9a-f]{6}$/i.test(input.color)?input.color:'#9ef3db';
+  const group=new THREE.Group(),p=world(lon,lat,.24);group.position.copy(p);layers[3].add(group);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.43,.48,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+  ring.rotation.x=-Math.PI/2;group.add(ring);
+  const label=document.createElement('div');label.className='location-event';label.style.color=color;label.textContent=input.title.trim().slice(0,140);$('#bay-hero').appendChild(label);
+  activeEvents.push({group,ring,label,duration,age:0});$('#scene').dataset.activeEvents=String(activeEvents.length);return true;
+}
+function updateEvents(dt){
+  const w=$('#bay-hero').clientWidth,h=$('#bay-hero').clientHeight;
+  for(let i=activeEvents.length-1;i>=0;i--){
+    const e=activeEvents[i];e.age+=dt;
+    if(e.age>=e.duration){removeEvent(e);activeEvents.splice(i,1);continue;}
+    const fade=Math.min(1,e.age/.7,(e.duration-e.age)/1.5),pulse=(e.age%2.8)/2.8;
+    e.ring.scale.setScalar(reducedMotion?1:1+pulse*4);e.ring.material.opacity=fade*(reducedMotion?.6:1-pulse)*(state.focus<0||state.focus===3?1:.09);
+    const p=e.group.getWorldPosition(new THREE.Vector3()).project(camera),x=(p.x*.5+.5)*w,y=(-p.y*.5+.5)*h;
+    const visible=p.z>=-1&&p.z<=1&&x>0&&x<w&&y>0&&y<h&&(state.focus<0||state.focus===3);
+    e.label.style.transform=`translate(${x}px,${y-14}px) translate(-50%,-100%)`;e.label.style.opacity=visible?String(fade):'0';
+  }
+  $('#scene').dataset.activeEvents=String(activeEvents.length);
 }
 function landmarkTower(lon,lat,height,w,d,type,g){
   const p=world(lon,lat);let geom;if(type==='pyramid'){geom=new THREE.ConeGeometry(w,height,4);geom.rotateY(Math.PI/4);}else geom=new THREE.CylinderGeometry(w*.8,w,height,8);
@@ -505,7 +597,7 @@ function renderLoop(){
     controls.update(dt);if(Math.abs(cameraBank)>.00001)camera.rotateZ(cameraBank);scene.updateMatrixWorld();
     const hours=Math.floor(state.time),minutes=Math.floor((state.time-hours)*60);const timeLabel=`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;if($('#clock').textContent!==timeLabel)$('#clock').textContent=timeLabel;
     const daylight=Math.max(0,Math.sin((state.time-6)/24*Math.PI*2));scene.children.find(o=>o.isHemisphereLight).intensity=.55+daylight*.8;
-    updateAnnotations();renderer.render(scene,camera);
+    updateAnnotations();updateEvents(dt);renderer.render(scene,camera);
     if(now-lastStats>2000){window.bayLayers.stats={...stats,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,points:renderer.info.render.points,frameMs:Math.round(dt*1000),cameraPosition:camera.position.toArray().map(x=>+x.toFixed(2))};$('#scene').dataset.renderStats=JSON.stringify(window.bayLayers.stats);lastStats=now;}
   }requestAnimationFrame(frame);
 }
@@ -528,7 +620,7 @@ async function boot(){
     const cityResult=cityLoad.then(value=>({status:'fulfilled',value}),reason=>({status:'rejected',reason}));
     const [height,contours,coast]=await terrainLoad;heightGrid=new Float32Array(height);packedContours=new Int16Array(contours);packedCoast=new Int16Array(coast);
     makeTerrain();makeForces();makeConnections();
-    window.bayLayers={state,stats,renderer,scene,camera,controls,focus:setFocus,reset:resetView};
+    window.bayLayers={state,stats,renderer,scene,camera,controls,focus:setFocus,reset:resetView,showEvent};
     renderLoop();$('#loading').classList.add('finished');setTimeout(()=>$('#loading')?.remove(),700);
     $('#scene').dataset.firstLandscapeMs=String(Math.round(performance.now()-startupAt));
     await new Promise(requestAnimationFrame);
@@ -549,7 +641,7 @@ async function boot(){
     const vegetation=await vegetationResult;if(vegetation.value)makeVegetation(vegetation.value);else console.warn('Vegetation unavailable',vegetation.error);
     const hydro=await hydroResult;if(hydro.value)makeHydrography(hydro.value);else console.warn('Hydrography unavailable',hydro.error);
     layers[2].userData.reveal=0;layers[3].userData.reveal=0;state.ready=true;
-    if(window.parent!==window)window.parent.postMessage({type:'bay-layers:ready',version:1},params.get('parentOrigin')||'*');
+    if(window.parent!==window)window.parent.postMessage({type:'bay-layers:ready',version:1,bounds:BOUNDS},params.get('parentOrigin')||'*');
     $('#scene').dataset.fullSceneMs=String(Math.round(performance.now()-startupAt));
     $('#mapped-data-copy').textContent=`${buildings.length.toLocaleString()} simplified building footprints across the visible Bay slice, ${streets.length.toLocaleString()} sampled street segments, and ${trees.length.toLocaleString()} mapped points from a historical street-tree inventory. These are partial source snapshots, not a present-day census. Marin vegetation patches follow a historical mapped lifeform classification. Missing regional building heights use an illustrative two-storey default. Crown sizes, SF park sketches and landmark meshes are illustrative.`;
   }catch(error){console.error(error);const loader=$('#loading');if(loader)loader.style.display='none';$('#error-copy').textContent=error.message;$('#error-panel').hidden=false;}

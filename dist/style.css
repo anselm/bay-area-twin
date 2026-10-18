@@ -13,3 +13,5 @@ body.backdrop.interactive #scene{pointer-events:auto}
 body:not(.interactive) #scene{pointer-events:none}
 /* Avoid Chromium painting a dark canvas behind a transparent cross-scheme iframe. */
 html.transparent{color-scheme:normal}
+
+.location-event{position:absolute;left:0;top:0;z-index:8;pointer-events:none;max-width:min(280px,80%);padding:7px 11px;border:1px solid currentColor;border-radius:4px;background:rgba(7,16,25,.86);font:12px/1.5 system-ui;letter-spacing:.02em;opacity:0;box-shadow:0 0 24px #78ddc422;overflow-wrap:anywhere}

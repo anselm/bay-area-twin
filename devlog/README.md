@@ -19,3 +19,5 @@ Read in this order:
 8. [Continuous camera journey](20261017-continuous-camera-journey.md) — a geographically coherent flight and independently smoothed observation.
 
 Future entries should be short and written when meaningful decisions happen. Preserve uncertainty and abandoned approaches when they explain a choice. Keep measured results tied to their conditions; avoid turning an illustrative landscape into a claim of an operational twin.
+
+9. [Exploration and events](20261018-exploration-and-events.md) — quieter observation stations, illustrative beacons, external events and practical uses.

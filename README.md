@@ -6,6 +6,14 @@
 
 A wide, luminous, interactive portrait of San Francisco Bay that explains the idea of a digital twin through four shared geographic layers: earth and seabed, natural forces, living systems, and the built world.
 
+## Practical directions
+
+[Use cases and regional portability](docs/UTILITY-AND-PORTABILITY.md) describes twelve grounded applications and the evidence/models they would require. [Location event API](docs/EVENTS.md) documents externally supplied, temporary location pulses.
+
+The default camera now explores broad points of interest, lingering before slow transitions with a varying itinerary. Default speed is **2**, half the previous setting. The authored bridge flight remains available with `camera=tour` (about 55 seconds at speed 2). Existing embeds with an explicit `speed=4` retain that override; remove it or change it to 2.
+
+Sparse red aviation-style beacons are **illustrative**, not a surveyed lamp inventory. No events appear automatically: the host supplies them through `bay-layers:event` or `window.bayLayers.showEvent()`.
+
 ## Development notes
 
 Read the [devlog](devlog/README.md) for a short, retrospective account of the prototype, static-data decisions, regional coverage, embedding and camera choreography.
@@ -132,7 +140,7 @@ Use the **Pages URL**, not a github.com source link or raw.githubusercontent.com
 </style>
 ```
 
-`?backdrop=1` hides controls and retains annotations, uses a 30 fps cap, honors reduced-motion preferences, and pauses rendering when the iframe is offscreen or the tab is hidden. Backdrop mode now permits drag, zoom and pan by default. The default camera tour starts immediately and resumes smoothly 12 seconds after interaction. The wrapper above keeps the landscape interactive wherever article copy does not cover it. For a purely decorative version, add `interactive=0`, `pointer-events:none`, `aria-hidden="true"` and `tabindex="-1"`. For an interactive widget use the ordinary URL (or `?embed=1` for compact controls), remove `aria-hidden`, `tabindex` and `pointer-events: none`. `?transparent=1` can be combined with backdrop mode to let the host page's background show through.
+`?backdrop=1` hides controls and retains annotations, uses a 30 fps cap, honors reduced-motion preferences, and pauses rendering when the iframe is offscreen or the tab is hidden. Backdrop mode now permits drag, zoom and pan by default. The default landscape exploration starts immediately and resumes smoothly 12 seconds after interaction. The wrapper above keeps the landscape interactive wherever article copy does not cover it. For a purely decorative version, add `interactive=0`, `pointer-events:none`, `aria-hidden="true"` and `tabindex="-1"`. For an interactive widget use the ordinary URL (or `?embed=1` for compact controls), remove `aria-hidden`, `tabindex` and `pointer-events: none`. `?transparent=1` can be combined with backdrop mode to let the host page's background show through.
 
 An iframe isolates the scene's styles and Three.js from the wiki. Updating the Pages deployment updates every embedding page. For a stable article edition, use a separately hosted versioned copy. Alternatively copy `dist/` into your wiki's public assets under `bay-area-twin/` and change the iframe URL to `/bay-area-twin/?backdrop=1`; preserve the folder layout and attribution. No npm package or Git submodule is required.
 
@@ -175,9 +183,10 @@ Use the [embed configurator](https://anselm.github.io/bay-area-twin/embed.html) 
 | `backdrop=1` | Hide interface, keep place labels; mouse/touch interaction enabled by default. |
 | `bg=transparent` | Fully transparent HTML/canvas; removes the dark vignette and distance fog. `transparent=1` remains an alias. |
 | `bg=132c3d` | Solid six-digit hex background matching your page. Omit `#` in URLs, or encode it as `%23`. Distance fog matches the chosen color. |
-| `camera=orbit` | Automatic slow orbit, as an alternative to the default tour. |
-| `camera=tour` | Default: a looping spline flight (about 28 seconds at the default speed) from Treasure Island through the Bay Bridge into SF, around Transamerica, out through Golden Gate and back over the Bay, with subtle turn banking. |
-| `speed=4` | Camera speed multiplier, 0.25–12; default 4. A tour takes 110 ÷ speed seconds: `speed=1` is the original pace, `speed=6` takes about 18 seconds. Applies to orbit too; does not change traffic or the day/night cycle. |
+| `camera=orbit` | Automatic slow orbit, as an alternative to the optional bridge tour. |
+| `camera=explore` | Default: linger at broad observation stations and travel slowly between them, varying the itinerary. At speed 2, observations linger for 14 seconds, then transition for at least 22 seconds; longer distances take proportionally longer. |
+| `camera=tour` | Optional: a looping spline flight (about 55 seconds at the default speed) from Treasure Island through the Bay Bridge into SF, around Transamerica, out through Golden Gate and back over the Bay, with subtle turn banking. |
+| `speed=2` | Camera speed multiplier, 0.25–12; default 2. A tour takes 110 ÷ speed seconds: `speed=1` is the original pace, `speed=6` takes about 18 seconds. Applies to orbit too; does not change traffic or the day/night cycle. |
 | `camera=static` | No automatic camera movement; animated life still runs. |
 | `interactive=0` | Disable mouse/touch model controls. Default is `1`; parent wrapper pointer events must also be enabled for interaction. |
 | `parentOrigin=https%3A%2F%2Fyour-wiki.example` | Optional restriction on the embedding parent's control messages. |
@@ -187,7 +196,7 @@ Interactive transparent example (ensure that overlapping host content does not c
 ```html
 <iframe
   id="bay-twin"
-  src="https://anselm.github.io/bay-area-twin/?backdrop=1&amp;bg=transparent&amp;camera=tour"
+  src="https://anselm.github.io/bay-area-twin/?backdrop=1&amp;bg=transparent&amp;camera=explore"
   title="Explore the layered landscape of San Francisco Bay"
   style="width:100%;aspect-ratio:16/9;min-height:420px;border:0;background:transparent"
 ></iframe>
@@ -206,7 +215,7 @@ function configureBay(options) {
 window.addEventListener('message', event => {
   if (event.source !== widget.contentWindow || event.origin !== widgetOrigin) return;
   if (event.data?.type === 'bay-layers:ready') {
-    configureBay({background: 'transparent', camera: 'tour', interactive: true});
+    configureBay({background: 'transparent', camera: 'explore', interactive: true});
   }
 });
 // Call from your page's buttons:
@@ -217,13 +226,13 @@ window.addEventListener('message', event => {
 // configureBay({separation: 0.82, focus: -1, reset: true});
 ```
 
-Supported fields: `speed` (numeric, 0.25–12), `background` (transparent or six-digit hex), `camera` (orbit/tour/static), `playing` and `interactive` (booleans), `separation` (0–1), `focus` (-1 for all layers, 0–3 for one layer), and `reset:true`. Messages are accepted only from the immediate embedding parent; add `parentOrigin` for a stricter origin allowlist. No arbitrary code or external data URLs are accepted. Reduced motion starts playback paused; a visitor-triggered Play action may explicitly resume it.
+Supported fields: `speed` (numeric, 0.25–12), `background` (transparent or six-digit hex), `camera` (explore/orbit/tour/static), `playing` and `interactive` (booleans), `separation` (0–1), `focus` (-1 for all layers, 0–3 for one layer), and `reset:true`. Messages are accepted only from the immediate embedding parent; add `parentOrigin` for a stricter origin allowlist. No arbitrary code or external data URLs are accepted. Reduced motion starts playback paused; a visitor-triggered Play action may explicitly resume it.
 
 ### Automatic camera choreography
 
-The tour is now the default even when `camera` is omitted. It starts as soon as the terrain renders, follows a closed centripetal spline through points of interest, and gently banks into turns (capped below 4 degrees). The route mixes wide views with close centerline passes through the simplified Bay Bridge and Golden Gate towers, moving with the built layer when separation changes. Mouse/touch interaction takes over immediately; after 12 seconds idle, the tour blends back from the visitor's chosen view without a cut. Reduced motion still starts paused. Existing embeds explicitly specifying `camera=orbit` or `camera=static` retain that choice; remove that parameter or use `camera=tour` to adopt the tour. Host controls sending `playing:false` must also be removed or resumed for autoplay.
+The optional `camera=tour` preserves the earlier bridge journey; default `camera=explore` now favors broad landscape observation. In tour mode, it starts as soon as the terrain renders, follows a closed centripetal spline through points of interest, and gently banks into turns (capped below 4 degrees). The route mixes wide views with close centerline passes through the simplified Bay Bridge and Golden Gate towers, moving with the built layer when separation changes. Mouse/touch interaction takes over immediately; after 12 seconds idle, the tour blends back from the visitor's chosen view without a cut. Reduced motion still starts paused. Existing embeds explicitly specifying `camera=orbit` or `camera=static` retain that choice; remove that parameter or use `camera=tour` to adopt the tour. Host controls sending `playing:false` must also be removed or resumed for autoplay.
 
-The camera now defaults to `speed=4` after feedback that the initial tour felt too slow. Use the URL parameter or parent message `{type: "bay-layers:configure", speed: 6}` to adjust it. Speed changes preserve tour progress and the idle takeover behavior.
+Historical note: the camera initially moved to `speed=4`; the current default is `speed=2` for a more majestic pace. Use the URL parameter or parent message `{type: "bay-layers:configure", speed: 6}` to adjust it. Speed changes preserve tour progress and the idle takeover behavior.
 
 ### Bridge fly-throughs
 
